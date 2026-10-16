@@ -10,7 +10,9 @@ papers/
 slides/
 *.local.*
 
-# ---- large / third-party ----
+# ---- large / third-party / generated ----
+cache/
+results/_*/
 data/
 external/
 weights/

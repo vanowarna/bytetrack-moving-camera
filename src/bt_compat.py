@@ -20,6 +20,8 @@ from pathlib import Path
 
 import numpy as np
 
+from src import np_compat  # noqa: F401  (2. NumPy aliases)
+
 ROOT = Path(__file__).resolve().parents[1]
 BYTETRACK_DIR = ROOT / "external" / "ByteTrack"
 
@@ -29,11 +31,6 @@ if not BYTETRACK_DIR.exists():
     )
 if str(BYTETRACK_DIR) not in sys.path:
     sys.path.insert(0, str(BYTETRACK_DIR))
-
-# 2. NumPy aliases removed in 1.24
-for _name, _typ in (("float", float), ("int", int), ("bool", bool)):
-    if not hasattr(np, _name):
-        setattr(np, _name, _typ)
 
 
 # 3. cython_bbox replacement

@@ -13,6 +13,7 @@ def report(name, cond, hint=""):
     ok &= bool(cond)
     print(f"[{'OK' if cond else 'FAIL'}] {name}" + ("" if cond else f"  -> {hint}"))
 
+import src.torch_setup  # noqa: E402,F401
 import torch
 report(f"torch {torch.__version__}", True)
 cuda = torch.cuda.is_available()
@@ -21,6 +22,12 @@ if cuda:
     print(f"      GPU: {torch.cuda.get_device_name(0)}  capability: {torch.cuda.get_device_capability(0)}")
     x = torch.randn(256, 256, device="cuda", dtype=torch.float16)
     report("fp16 matmul on GPU", torch.isfinite(x @ x).all().item())
+    try:  # exercises cuDNN (convolutions), which matmul does not
+        conv = torch.nn.Conv2d(3, 16, 3).cuda().half()
+        y = conv(torch.randn(1, 3, 64, 64, device="cuda", dtype=torch.float16))
+        report(f"fp16 conv on GPU (cuDNN {torch.backends.cudnn.version()})", torch.isfinite(y).all().item())
+    except Exception as e:  # noqa: BLE001
+        report("fp16 conv on GPU (cuDNN)", False, repr(e))
 
 try:
     import src.bt_compat  # noqa: F401

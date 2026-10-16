@@ -35,7 +35,12 @@ uv run python scripts/check_env.py
 ```
 
 ## 5. Reproduce
-_To be added._
+```bash
+uv run python scripts/make_splits.py                                  # half-val split + TrackEval self-test
+uv run python scripts/run_pipeline.py --config configs/p1_smoke.yaml  # detect -> track -> evaluate (MOT17-02)
+```
+Steps can also be run one by one: `run_detect.py` (GPU, cached in `cache/dets/`), `run_track.py` (CPU), `run_eval.py`.
+Each run writes `results/<run_id>/` with `config.yaml`, `env.json`, `tracks/`, `metrics.json`, `metrics_per_seq.csv` and TrackEval outputs.
 
 ## Credits
 - ByteTrack (MIT) — Zhang et al., ECCV 2022. Used unmodified from `external/ByteTrack`; see `src/bt_compat.py` for the compatibility shims.

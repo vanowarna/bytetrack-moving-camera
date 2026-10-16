@@ -19,7 +19,7 @@ foreach ($r in $repos) {
   Write-Host "$($r.name) @ $($r.commit)"
 }
 # Expose TrackEval as an importable package via a .pth file in the uv venv
-$site = (uv run python -c "import site; print(site.getsitepackages()[-1])").Trim()
+$site = (uv run python -c "import sysconfig; print(sysconfig.get_paths()['purelib'])").Trim()
 $pth = Join-Path $site "trackeval_local.pth"
 Set-Content -LiteralPath $pth -Value (Join-Path $ext "TrackEval")
 Write-Host "Wrote $pth"
