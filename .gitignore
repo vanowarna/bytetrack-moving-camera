@@ -1,0 +1,37 @@
+# ---- private / internal notes (never public) ----
+/*.md
+!/README.md
+/.*
+!/.gitignore
+!/.python-version
+docs/
+init/
+papers/
+slides/
+*.local.*
+
+# ---- large / third-party ----
+data/
+external/
+weights/
+*.pth
+*.pth.tar
+*.onnx
+*.mp4
+*.avi
+
+# ---- python / tools ----
+.venv/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.vscode/
+.idea/
+
+# ---- latex build ----
+paper/*.aux
+paper/*.log
+paper/*.out
+paper/*.synctex.gz
+paper/*.bbl
+paper/*.blg
