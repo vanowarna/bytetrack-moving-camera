@@ -44,8 +44,9 @@ def _set_kalman_scale(tracker: BYTETracker, scale: float):
         kf._std_weight_velocity = _KF_VEL * scale
 
 
-def track_sequence(seq: str, dets: dict, tcfg: dict) -> list[tuple]:
-    """dets: output of src.detect_io.load_dets. Returns rows (frame, id, x1, y1, w, h, score)."""
+def track_sequence(seq: str, dets: dict, tcfg: dict, logger=None) -> list[tuple]:
+    """dets: output of src.detect_io.load_dets. Returns rows (frame, id, x1, y1, w, h, score).
+    `logger`: optional src.track_log.AssociationLogger (read-only; call inside `logger.patch()`)."""
     cfg = {**DEFAULT_TRACKER, **(tcfg or {})}
     if cfg["type"] == "sort":
         return _track_sequence_sort(dets, cfg)
@@ -63,6 +64,8 @@ def track_sequence(seq: str, dets: dict, tcfg: dict) -> list[tuple]:
             d = dets["by_frame"][frame]
             if d is None:  # ByteTrack skips the update when the detector returns None
                 continue
+            if logger is not None:
+                logger.begin(frame, tracker)
             # boxes are already in original pixels -> pass img_size = (h, w) so the tracker's scale is 1.0
             online = tracker.update(d.copy(), [h, w], (h, w))
             for t in online:

@@ -65,6 +65,13 @@ uv run python scripts/analyze_e2.py --run e1_default --gap-runs e1_default e1_fp
 ```
 Writes group/sequence tables (`.csv`, `.tex`) and figures to `results/e2/`.
 
+### E3 — camera motion vs Kalman prediction
+```bash
+uv run python scripts/run_camera_motion.py --config configs/e1_default.yaml   # ORB + RANSAC per frame (CPU)
+uv run python scripts/run_e3_log.py --config configs/e1_default.yaml          # read-only association log + per-frame events
+uv run python scripts/analyze_e3.py --case-seq MOT17-13-FRCNN                 # tables + figures in results/e3/
+```
+
 ## Credits
 - ByteTrack (MIT) — Zhang et al., ECCV 2022. Used unmodified from `external/ByteTrack`; see `src/bt_compat.py` for the compatibility shims. `src/postprocess.py` re-implements its `tools/interpolation.py`.
 - TrackEval (MIT) — Luiten et al.
