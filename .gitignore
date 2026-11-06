@@ -33,6 +33,7 @@ __pycache__/
 
 # ---- latex build ----
 paper/appendix_ai.tex
+paper/*.zip
 paper/*.fdb_latexmk
 paper/*.fls
 paper/*.pdf

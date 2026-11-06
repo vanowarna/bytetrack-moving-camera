@@ -246,7 +246,7 @@ frame-to-frame matching. The gap remains under all tracker settings we tested, a
 
 \appendices
 \section{Reproducibility}
-Code: \url{https://github.com/vanowarna/bytetrack-moving-camera} \todo{commit hash at submission}. Environment: Python 3.11,
+Code: \url{https://github.com/vanowarna/bytetrack-moving-camera} (release \texttt{v1.0}). Environment: Python 3.11,
 PyTorch 2.7.1 (CUDA 12.8), locked with \texttt{uv}; ByteTrack \texttt{d1bf019}, TrackEval \texttt{12c8791}.
 Hardware: NVIDIA RTX 5050 Laptop GPU (8\,GB). Detection: \vDetMsFP{}\,ms per frame (FP16). Commands:
 \texttt{scripts/make\_splits.py}; \texttt{scripts/run\_many.py --configs "configs/e1\_*.yaml" --table e1} (Table~\ref{tab:e1});
