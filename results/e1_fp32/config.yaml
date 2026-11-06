@@ -1,0 +1,34 @@
+run_id: e1_fp32
+note: detector FP32
+seed: 0
+seqs:
+- MOT17-02-FRCNN
+- MOT17-04-FRCNN
+- MOT17-05-FRCNN
+- MOT17-09-FRCNN
+- MOT17-10-FRCNN
+- MOT17-11-FRCNN
+- MOT17-13-FRCNN
+detector:
+  det_id: yolox_x_ablation_800x1440_fp32
+  exp: external/ByteTrack/exps/example/mot/yolox_x_ablation.py
+  ckpt: weights/bytetrack_ablation.pth.tar
+  test_size:
+  - 800
+  - 1440
+  conf: 0.01
+  nms: 0.7
+  fp16: false
+  fuse: true
+  cudnn: true
+tracker:
+  track_thresh: 0.6
+  match_thresh: 0.9
+  track_buffer: 30
+  per_seq_buffer:
+    MOT17-05-FRCNN: 14
+    MOT17-13-FRCNN: 25
+  min_box_area: 100
+  aspect_ratio_thresh: 1.6
+  kalman_noise_scale: 1.0
+source_config: configs/e1_fp32.yaml

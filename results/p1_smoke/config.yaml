@@ -1,0 +1,24 @@
+# P1 smoke test: official ByteTrack settings on one sequence (MOT17-02, static camera).
+run_id: p1_smoke
+seed: 0
+seqs: [MOT17-02-FRCNN]
+
+detector:
+  det_id: yolox_x_ablation_800x1440_fp16   # cache key: change it whenever a detector setting changes
+  exp: external/ByteTrack/exps/example/mot/yolox_x_ablation.py
+  ckpt: weights/bytetrack_ablation.pth.tar
+  test_size: [800, 1440]
+  conf: 0.01        # tools/track.py --conf default
+  nms: 0.7
+  fp16: true
+  fuse: true
+  cudnn: true      # set false only if cuDNN fails to load (slower, same results up to float error)
+
+tracker:            # tools/track.py defaults
+  track_thresh: 0.6
+  match_thresh: 0.9
+  track_buffer: 30
+  per_seq_buffer: {MOT17-05-FRCNN: 14, MOT17-13-FRCNN: 25}
+  min_box_area: 100
+  aspect_ratio_thresh: 1.6
+  kalman_noise_scale: 1.0

@@ -1,0 +1,14 @@
+\begin{tabular}{lrrrrrr}
+\toprule
+Setting & MOTA$^*$ & IDF1$^*$ & IDs$^*$ & HOTA & DetA & AssA \\
+\midrule
+Paper~\cite{zhang2022bytetrack} & 76.6 & 79.3 & 159 & -- & -- & -- \\
+\midrule
+Official settings & 76.6 & 79.3 & 164 & 67.9 & 66.6 & 69.8 \\
++ interpolation (20) & 78.3 & 80.2 & 148 & 69.0 & 68.0 & 70.6 \\
+Match thr. 0.8 & 76.4 & 79.0 & 202 & 67.9 & 66.4 & 69.9 \\
+Match 0.8 + interp. & 78.0 & 79.8 & 187 & 68.9 & 67.7 & 70.8 \\
+Detector in FP32 & 76.6 & 78.7 & 167 & 67.6 & 66.7 & 69.0 \\
+SORT, same detections & 74.6 & 77.2 & 287 & 66.5 & 65.0 & 68.5 \\
+\bottomrule
+\end{tabular}

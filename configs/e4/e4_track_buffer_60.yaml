@@ -1,0 +1,13 @@
+# E4 sensitivity: one parameter changed from the official settings (generated)
+base: ../e1_default.yaml
+run_id: e4_track_buffer_60
+note: track buffer = 60
+e4:
+  param: track_buffer
+  value: 60
+  default: 30
+tracker:
+  track_buffer: 60
+  per_seq_buffer:
+    MOT17-05-FRCNN: 28
+    MOT17-13-FRCNN: 50

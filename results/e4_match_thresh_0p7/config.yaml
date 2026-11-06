@@ -1,0 +1,38 @@
+run_id: e4_match_thresh_0p7
+note: match thr. = 0.7
+seed: 0
+seqs:
+- MOT17-02-FRCNN
+- MOT17-04-FRCNN
+- MOT17-05-FRCNN
+- MOT17-09-FRCNN
+- MOT17-10-FRCNN
+- MOT17-11-FRCNN
+- MOT17-13-FRCNN
+detector:
+  det_id: yolox_x_ablation_800x1440_fp16
+  exp: external/ByteTrack/exps/example/mot/yolox_x_ablation.py
+  ckpt: weights/bytetrack_ablation.pth.tar
+  test_size:
+  - 800
+  - 1440
+  conf: 0.01
+  nms: 0.7
+  fp16: true
+  fuse: true
+  cudnn: true
+tracker:
+  track_thresh: 0.6
+  match_thresh: 0.7
+  track_buffer: 30
+  per_seq_buffer:
+    MOT17-05-FRCNN: 14
+    MOT17-13-FRCNN: 25
+  min_box_area: 100
+  aspect_ratio_thresh: 1.6
+  kalman_noise_scale: 1.0
+e4:
+  param: match_thresh
+  value: 0.7
+  default: 0.9
+source_config: configs/e4/e4_match_thresh_0p7.yaml

@@ -1,0 +1,50 @@
+# ---- private / internal notes (never public) ----
+/*.md
+!/README.md
+/.*
+!/.github/
+!/.gitignore
+!/.python-version
+docs/
+init/
+papers/
+slides/
+*.local.*
+
+# ---- large / third-party / generated ----
+cache/
+demo_out/
+results/_*/
+data/
+external/
+weights/
+*.pth
+*.pth.tar
+*.onnx
+*.mp4
+*.avi
+
+# ---- python / tools ----
+.venv/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.vscode/
+.idea/
+
+# ---- latex build ----
+paper/appendix_ai.tex
+paper/*.zip
+paper/*.fdb_latexmk
+paper/*.fls
+paper/*.pdf
+paper/*.aux
+paper/*.log
+paper/*.out
+paper/*.synctex.gz
+paper/*.bbl
+paper/*.blg
+
+# ---- project page (public) ----
+!/site/data/
+!/site/assets/*.mp4

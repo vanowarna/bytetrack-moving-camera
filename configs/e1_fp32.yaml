@@ -1,0 +1,5 @@
+# E1 gap study: detector in FP32 instead of FP16 (needs a new GPU detection pass, ~2x slower).
+base: e1_default.yaml
+run_id: e1_fp32
+note: "detector FP32"
+detector: {det_id: yolox_x_ablation_800x1440_fp32, fp16: false}

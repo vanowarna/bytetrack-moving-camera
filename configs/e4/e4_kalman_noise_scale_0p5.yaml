@@ -1,0 +1,10 @@
+# E4 sensitivity: one parameter changed from the official settings (generated)
+base: ../e1_default.yaml
+run_id: e4_kalman_noise_scale_0p5
+note: Kalman process noise x = 0.5
+e4:
+  param: kalman_noise_scale
+  value: 0.5
+  default: 1.0
+tracker:
+  kalman_noise_scale: 0.5

@@ -1,0 +1,70 @@
+{
+  "run_id": "p1_smoke",
+  "seqs": [
+    "MOT17-02-FRCNN"
+  ],
+  "trackeval": {
+    "all": {
+      "HOTA": 47.62195828182518,
+      "DetA": 49.023056176383875,
+      "AssA": 46.910119786736225,
+      "LocA": 83.05151819637399,
+      "MOTA": 55.40485829959514,
+      "MOTP": 80.85070320656999,
+      "IDF1": 58.767051109419825,
+      "IDSW": 57,
+      "FP": 835,
+      "FN": 3514,
+      "TP": 6366,
+      "Frag": 162,
+      "MT": 16,
+      "ML": 9
+    }
+  },
+  "trackeval_per_seq": {
+    "MOT17-02-FRCNN": {
+      "HOTA": 47.62195828182518,
+      "DetA": 49.023056176383875,
+      "AssA": 46.910119786736225,
+      "LocA": 83.05151819637399,
+      "MOTA": 55.40485829959514,
+      "MOTP": 80.85070320656999,
+      "IDF1": 58.767051109419825,
+      "IDSW": 57,
+      "FP": 835,
+      "FN": 3514,
+      "TP": 6366,
+      "Frag": 162,
+      "MT": 16,
+      "ML": 9
+    }
+  },
+  "motmetrics_bytetrack_protocol": {
+    "MOT17-02-FRCNN": {
+      "mota": 53.4919028340081,
+      "idf1": 58.17655571635311,
+      "num_switches": 56.0,
+      "num_false_positives": 1027.0,
+      "num_misses": 3512.0,
+      "motp": 0.1953443921340873,
+      "mostly_tracked": 18.0,
+      "mostly_lost": 9.0,
+      "num_fragmentations": 172.0,
+      "num_objects": 9880.0,
+      "num_predictions": 7395.0
+    },
+    "combined": {
+      "mota": 53.4919028340081,
+      "idf1": 58.17655571635311,
+      "num_switches": 56.0,
+      "num_false_positives": 1027.0,
+      "num_misses": 3512.0,
+      "motp": 0.1953443921340873,
+      "mostly_tracked": 18.0,
+      "mostly_lost": 9.0,
+      "num_fragmentations": 172.0,
+      "num_objects": 9880.0,
+      "num_predictions": 7395.0
+    }
+  }
+}
