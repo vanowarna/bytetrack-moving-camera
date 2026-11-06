@@ -59,7 +59,8 @@ explanation of the setting behind the published numbers (Sec.~\ref{sec:e1});
 \item a split of the error into static- and moving-camera sequences, which shows a stable gap of about
 \vGapHOTA{} HOTA points, mainly in association (Sec.~\ref{sec:e2});
 \item a per-frame mechanism study that relates measured camera motion to the Kalman prediction and locates the loss in
-the recovery of lost tracks (Sec.~\ref{sec:e3}).
+the recovery of lost tracks (Sec.~\ref{sec:e3}), and a sensitivity study showing that the gap persists across
+tracker settings (Sec.~\ref{sec:e4}).
 \end{itemize}
 
 % =====================================================================================================
@@ -202,8 +203,28 @@ prediction and any high-score detection.}
 \end{figure}
 
 \subsection{E4: Sensitivity study}\label{sec:e4}
-\todo{E4 after the E1--E3 write-up (instructor's note): does the static/moving gap stay stable when the high-score
-threshold, the matching threshold, the track buffer and the Kalman noise change? Sensitivity only, no fix.}
+We change one tracker parameter at a time around the official settings: the high-score threshold (0.4--0.7), the
+matching threshold (0.7--0.95), the lost-track buffer (10--90 frames) and the standard deviation of the Kalman
+\emph{process} noise ($\times0.25$ to $\times4$, measurement noise fixed). Scaling all noise terms of ByteTrack's filter
+together leaves the Kalman gain, and therefore every prediction, unchanged, so only the process noise is varied. The
+aim is to test whether the gap is stable, not to remove it.
+
+Across all \vEfourN{} settings, moving cameras stay between \vEfourGapMin{} and \vEfourGapMax{} HOTA points behind static
+cameras (Fig.~\ref{fig:e4}), and the AssA gap exceeds the DetA gap in \vEfourAssaCount{} of them. The thresholds and the
+buffer hardly move the moving-camera result (HOTA \vEfourOtherMovMin--\vEfourOtherMovMax; gap
+\vEfourOtherGapMin--\vEfourOtherGapMax). The Kalman process noise is the only parameter that acts mainly on the moving
+group: making the filter trust its constant-velocity model more ($\times0.25$) lowers moving-camera HOTA to
+\vKfQuarterMov{} while static cameras keep \vKfQuarterStat, and allowing more process noise ($\times2$) raises it to
+\vKfTwoMov{} while static cameras drop to \vKfTwoStat. This asymmetry is consistent with E3: moving-camera tracks depend
+on how quickly the filter accepts a change of image motion. Overall HOTA is highest at the official setting, so no
+setting removes the gap without a cost elsewhere.
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=0.92\textwidth]{fig_e4_sensitivity}
+\caption{E4: HOTA of static and moving cameras when one parameter changes (dashed line: official value).}
+\label{fig:e4}
+\end{figure*}
 
 % =====================================================================================================
 \section{Discussion and Limitations}
@@ -212,13 +233,13 @@ locate the problem more precisely: for ByteTrack on MOT17, camera motion hardly 
 mainly breaks the re-association of tracks after a gap. Three limitations apply. First, there are only seven sequences,
 and the groups also differ in frame rate, viewpoint and lighting, so all results are correlational. Second, our camera
 model is a 2-D similarity transform, which cannot describe parallax or the forward motion in MOT17-13. Third, the
-analysis covers one detector and one tracker. \todo{update after E4.}
+analysis covers one detector and one tracker, and the sensitivity study changes one parameter at a time.
 
 \section{Conclusion}
 We reproduced ByteTrack on MOT17 half-val with the published MOTA and IDF1 and showed that the published numbers use
 the code's matching threshold. Moving-camera sequences lose about \vGapHOTA{} HOTA points, mainly in association. Camera
 motion degrades the Kalman prediction measurably, but the cost appears in the recovery of lost tracks, not in
-frame-to-frame matching. \todo{final sentence after E4.}
+frame-to-frame matching. The gap remains under all tracker settings we tested, and only the Kalman process noise changes it noticeably, which points to the motion model, rather than the detector or the matching thresholds, as the part to examine in future work.
 
 \bibliographystyle{IEEEtran}
 \bibliography{references}
@@ -230,7 +251,7 @@ PyTorch 2.7.1 (CUDA 12.8), locked with \texttt{uv}; ByteTrack \texttt{d1bf019}, 
 Hardware: NVIDIA RTX 5050 Laptop GPU (8\,GB). Detection: \vDetMsFP{}\,ms per frame (FP16). Commands:
 \texttt{scripts/make\_splits.py}; \texttt{scripts/run\_many.py --configs "configs/e1\_*.yaml" --table e1} (Table~\ref{tab:e1});
 \texttt{scripts/analyze\_e2.py} (Table~\ref{tab:seq}, E2); \texttt{scripts/run\_camera\_motion.py},
-\texttt{scripts/run\_e3\_log.py}, \texttt{scripts/analyze\_e3.py} (E3); \texttt{scripts/make\_paper\_assets.py}
+\texttt{scripts/run\_e3\_log.py}, \texttt{scripts/analyze\_e3.py} (E3); \texttt{scripts/make\_e4\_configs.py}, \texttt{scripts/run\_many.py}, \texttt{scripts/analyze\_e4.py} (E4); \texttt{scripts/make\_paper\_assets.py}
 (all numbers, tables and figures of this paper). Seeds are fixed; all runs are deterministic given the cached detections.
 
 \IfFileExists{appendix_ai.tex}{\input{appendix_ai}}{}

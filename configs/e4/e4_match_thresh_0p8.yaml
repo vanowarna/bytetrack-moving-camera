@@ -1,0 +1,10 @@
+# E4 sensitivity: one parameter changed from the official settings (generated)
+base: ../e1_default.yaml
+run_id: e4_match_thresh_0p8
+note: match thr. = 0.8
+e4:
+  param: match_thresh
+  value: 0.8
+  default: 0.9
+tracker:
+  match_thresh: 0.8

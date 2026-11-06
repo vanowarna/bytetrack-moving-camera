@@ -72,6 +72,18 @@ uv run python scripts/run_e3_log.py --config configs/e1_default.yaml          # 
 uv run python scripts/analyze_e3.py --case-seq MOT17-13-FRCNN                 # tables + figures in results/e3/
 ```
 
+### E4 — sensitivity study (one parameter at a time)
+```bash
+uv run python scripts/make_e4_configs.py
+uv run python scripts/run_many.py --configs "configs/e4/*.yaml" --table e4
+uv run python scripts/analyze_e4.py
+```
+
+### Paper assets
+```bash
+uv run python scripts/make_paper_assets.py   # paper/numbers.tex, paper/tables/, paper/figures/ from results/
+```
+
 ## Credits
 - ByteTrack (MIT) — Zhang et al., ECCV 2022. Used unmodified from `external/ByteTrack`; see `src/bt_compat.py` for the compatibility shims. `src/postprocess.py` re-implements its `tools/interpolation.py`.
 - TrackEval (MIT) — Luiten et al.

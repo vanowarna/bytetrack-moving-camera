@@ -6,7 +6,7 @@ Faithful to `yolox/evaluators/mot_evaluator.py` (MOTEvaluator.evaluate):
 - tracker.update is NOT called on frames where the detector returned None
 - output filter: keep a track box if w*h > min_box_area and w/h <= aspect_ratio_thresh
 - result line: frame,id,x1,y1,w,h,score,-1,-1,-1 (box rounded to 0.1, score to 0.01)
-Only addition: an optional Kalman noise scale for the sensitivity study (default 1.0 = official).
+Only addition: an optional process-noise scale of the Kalman filter for the sensitivity study (default 1.0 = official).
 
 `tracker.type: sort` runs ByteTrack's own SORT re-implementation (`yolox/sort_tracker/sort.py`), the
 "SORT" row of the ByteTrack paper's Table 2 (74.6 MOTA / 76.9 IDF1), with `tools/track_sort.py` defaults:
@@ -32,16 +32,33 @@ DEFAULT_TRACKER = {
     "min_box_area": 100,
     "aspect_ratio_thresh": 1.6,
     "mot20": False,
-    "kalman_noise_scale": 1.0,
+    "kalman_noise_scale": 1.0,  # std scale of the PROCESS noise only (measurement noise unchanged)
 }
 
-_KF_POS, _KF_VEL = KalmanFilter()._std_weight_position, KalmanFilter()._std_weight_velocity
+class ProcessNoiseScaledKF(KalmanFilter):
+    """ByteTrack's Kalman filter with only the PROCESS noise (prediction step) scaled by `q` (std scale; Q scales by q^2).
 
+    Scaling every noise weight together (process, measurement and initial covariance) leaves the Kalman gain and
+    therefore every prediction unchanged, so the sensitivity study must scale the process noise alone.
+    """
 
-def _set_kalman_scale(tracker: BYTETracker, scale: float):
-    for kf in (tracker.kalman_filter, STrack.shared_kalman):
-        kf._std_weight_position = _KF_POS * scale
-        kf._std_weight_velocity = _KF_VEL * scale
+    def __init__(self, q: float):
+        super().__init__()
+        self.q = q
+
+    def _scaled(self, fn, *args):
+        p, v = self._std_weight_position, self._std_weight_velocity
+        self._std_weight_position, self._std_weight_velocity = p * self.q, v * self.q
+        try:
+            return fn(*args)
+        finally:
+            self._std_weight_position, self._std_weight_velocity = p, v
+
+    def predict(self, mean, covariance):
+        return self._scaled(super().predict, mean, covariance)
+
+    def multi_predict(self, mean, covariance):
+        return self._scaled(super().multi_predict, mean, covariance)
 
 
 def track_sequence(seq: str, dets: dict, tcfg: dict, logger=None) -> list[tuple]:
@@ -56,7 +73,11 @@ def track_sequence(seq: str, dets: dict, tcfg: dict, logger=None) -> list[tuple]
     args = SimpleNamespace(track_thresh=cfg["track_thresh"], track_buffer=buffer,
                            match_thresh=cfg["match_thresh"], mot20=cfg["mot20"])
     tracker = BYTETracker(args, frame_rate=30)
-    _set_kalman_scale(tracker, cfg["kalman_noise_scale"])
+    q = float(cfg["kalman_noise_scale"])
+    shared_orig = STrack.shared_kalman
+    if q != 1.0:  # default 1.0 = official filter object, untouched
+        tracker.kalman_filter = ProcessNoiseScaledKF(q)
+        STrack.shared_kalman = ProcessNoiseScaledKF(q)
     h, w = dets["hw"]
     rows = []
     try:
@@ -74,7 +95,7 @@ def track_sequence(seq: str, dets: dict, tcfg: dict, logger=None) -> list[tuple]
                 if tlwh[2] * tlwh[3] > cfg["min_box_area"] and not vertical:
                     rows.append((frame, t.track_id, *tlwh, t.score))
     finally:
-        _set_kalman_scale(tracker, 1.0)  # restore the shared class-level filter
+        STrack.shared_kalman = shared_orig  # restore the class-level filter
     return rows
 
 

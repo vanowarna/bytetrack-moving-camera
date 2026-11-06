@@ -29,7 +29,7 @@ E1_RUNS = [  # (run_id, label in the table)
     ("e1_fp32", "Detector in FP32"),
     ("e1_sort", "SORT, same detections"),
 ]
-FIGURES = ["fig_e3_case", "fig_e2_per_seq", "fig_e2_gap", "fig_e3_binned", "fig_e3_error", "fig_e3_lost", "fig_e3_timeline"]
+FIGURES = ["fig_e4_sensitivity", "fig_e3_case", "fig_e2_per_seq", "fig_e2_gap", "fig_e3_binned", "fig_e3_error", "fig_e3_lost", "fig_e3_timeline"]
 
 
 def jload(p):
@@ -147,11 +147,29 @@ def main():
     rows += [r"\bottomrule", r"\end{tabular}"]
     (TAB / "tab_lost.tex").write_text("\n".join(rows) + "\n", encoding="utf-8")
 
+    # ---------------- E4 ----------------
+    e4p = RESULTS_DIR / "e4" / "e4_sensitivity.csv"
+    if e4p.exists():
+        e4 = rcsv(e4p)
+        sm = jload(RESULTS_DIR / "e4" / "e4_summary.json")
+        N.update(EfourN=sm["n_settings"], EfourGapMin=f"{sm['gap_min']:.1f}", EfourGapMax=f"{sm['gap_max']:.1f}",
+                 EfourAssaCount=sm["assa_gt_deta_count"])
+        other = [r for r in e4 if r["param"] != "kalman_noise_scale"]
+        N.update(EfourOtherGapMin=f"{min(float(r['gap_HOTA']) for r in other):.1f}",
+                 EfourOtherGapMax=f"{max(float(r['gap_HOTA']) for r in other):.1f}",
+                 EfourOtherMovMin=f"{min(float(r['HOTA_moving']) for r in other):.1f}",
+                 EfourOtherMovMax=f"{max(float(r['HOTA_moving']) for r in other):.1f}")
+        kf = {float(r["value"]): r for r in e4 if r["param"] == "kalman_noise_scale"}
+        for v, tag in ((0.25, "Quarter"), (2.0, "Two")):
+            r = kf[v]
+            N.update({f"Kf{tag}Mov": f1(r["HOTA_moving"]), f"Kf{tag}Stat": f1(r["HOTA_static"]),
+                      f"Kf{tag}Gap": f1(r["gap_HOTA"]), f"Kf{tag}HOTA": f1(r["HOTA"])})
+
     # ---------------- figures ----------------
     missing = []
     for name in FIGURES:
         src = None
-        for sub in ("e2", "e3"):
+        for sub in ("e2", "e3", "e4"):
             for ext in ("pdf", "png"):
                 p = RESULTS_DIR / sub / "figures" / f"{name}.{ext}"
                 if p.exists() and src is None:

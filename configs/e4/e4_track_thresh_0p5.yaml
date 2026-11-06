@@ -1,0 +1,10 @@
+# E4 sensitivity: one parameter changed from the official settings (generated)
+base: ../e1_default.yaml
+run_id: e4_track_thresh_0p5
+note: high-score thr. = 0.5
+e4:
+  param: track_thresh
+  value: 0.5
+  default: 0.6
+tracker:
+  track_thresh: 0.5
