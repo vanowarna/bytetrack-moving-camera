@@ -65,6 +65,10 @@ def load_seq(seq):
     cam = pd.read_csv(E3 / "camera_motion" / f"{seq}.csv")
     log = pd.read_csv(E3 / "assoc" / f"{seq}.csv.gz")
     ev = pd.read_csv(E3 / "events" / f"{seq}.csv")
+    lost = log[(log.stage == "high") & (log.state == "lost")].copy()
+    csum = cam.set_index("frame")["disp_px"].fillna(0).cumsum()
+    lost["cam_gap_rel"] = (lost.frame.map(csum) - (lost.frame - lost.since).map(csum)) / (lost.py2 - lost.py1).clip(lower=1)
+    lost["seq"], lost["group"] = seq, group_of(seq)
     one = log[(log.stage == "high") & (log.state == "tracked") & (log.since == 1)].copy()
     one = one.merge(cam[["frame"] + [c for c in cam.columns if c.startswith("a") and len(c) == 3]], on="frame", how="left")
     prev = cam[["frame"] + [c for c in cam.columns if c.startswith("a") and len(c) == 3]].copy()
@@ -87,7 +91,7 @@ def load_seq(seq):
     frames = cam[["frame", "ok", "disp_pct", "accel_pct"]].merge(per_frame, on="frame", how="left").merge(ev, on="frame", how="left")
     frames["seq"], frames["group"] = seq, group_of(seq)
     one["seq"], one["group"] = seq, group_of(seq)
-    return frames, one
+    return frames, one, lost
 
 
 def binned(ax, x, y, bins, color, label, ls="-", marker="o"):
@@ -139,6 +143,7 @@ def main():
     parts = [load_seq(s) for s in seqs]
     frames = pd.concat([p[0] for p in parts], ignore_index=True)
     one = pd.concat([p[1] for p in parts], ignore_index=True)
+    lost = pd.concat([p[2] for p in parts], ignore_index=True)
     frames.to_csv(E3 / "e3_frames.csv", index=False, float_format="%.6g")
 
     # ---- 5.2 sanity + per-sequence table ----------------------------------------------------------
@@ -184,6 +189,27 @@ def main():
         tot["miss_pct"] = 100 * tot["miss"] / tot["gt"]
         strat.to_csv(E3 / "e3_within_seq.csv", index=False, float_format="%.4g")
         tot.to_csv(E3 / "e3_within_seq_total.csv", index=False, float_format="%.4g")
+
+    # ---- lost tracks: re-finding a track after a gap (multi-step Kalman prediction) ----------------
+    gap_bins = [1, 2, 4, 8, 16, 31]
+    lost["gap"] = pd.cut(lost.since, gap_bins, labels=["2", "3-4", "5-8", "9-16", "17-30"])
+    lt = lost.groupby(["group", "gap"], observed=True).agg(n=("matched", "size"), rematch_pct=("matched", "mean"),
+                                                           best_iou=("best_iou", "mean")).reset_index()
+    lt["rematch_pct"] *= 100
+    lt.to_csv(E3 / "e3_lost.csv", index=False, float_format="%.4g")
+    piv = lt.pivot(index="gap", columns="group", values=["rematch_pct", "best_iou"])
+    lines = [r"\begin{tabular}{lrrrr}", r"\toprule",
+             r"Gap (frames) & Re-found \% static & Re-found \% moving & Best IoU static & Best IoU moving \\", r"\midrule"]
+    for gap, r in piv.iterrows():
+        lines.append(f"{gap} & {r[('rematch_pct', 'static')]:.1f} & {r[('rematch_pct', 'moving')]:.1f} & "
+                     f"{r[('best_iou', 'static')]:.3f} & {r[('best_iou', 'moving')]:.3f} \\\\")
+    lines += [r"\bottomrule", r"\end{tabular}"]
+    (E3 / "e3_lost.tex").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    # control: inside moving sequences, at the SAME gap length, does more camera motion during the gap matter?
+    mv = lost[lost.group == "moving"]
+    within = [spearmanr(g.cam_gap_rel, g.best_iou)[0] for _, g in mv.groupby("since") if len(g) > 50]
+    lost_ctrl = {"rho_pooled": rho(mv.cam_gap_rel.values, mv.best_iou.values)[0],
+                 "rho_within_gap_median": float(np.median(within)) if within else float("nan"), "gap_lengths": len(within)}
 
     # ---- figures ------------------------------------------------------------------------------------
     # 5.2 timeline of camera motion
@@ -233,6 +259,20 @@ def main():
     fig.tight_layout()
     save(fig, "fig_e3_error")
 
+    # lost-track recovery vs gap length
+    fig, axes = plt.subplots(1, 2, figsize=(6.8, 2.4))
+    for g, mk in (("static", "o"), ("moving", "D")):
+        r = lt[lt.group == g]
+        axes[0].plot(r.gap.astype(str), r.rematch_pct, marker=mk, color=GROUP_COLORS[g], label=g, lw=1.5, ms=4)
+        axes[1].plot(r.gap.astype(str), r.best_iou, marker=mk, color=GROUP_COLORS[g], label=g, lw=1.5, ms=4)
+    axes[0].set_ylabel("lost track re-found (%)")
+    axes[1].set_ylabel("best IoU of prediction")
+    for a in axes:
+        a.set_xlabel("frames since last update")
+    axes[0].legend(frameon=False, fontsize=7)
+    fig.tight_layout()
+    save(fig, "fig_e3_lost")
+
     if args.case_seq:
         case_figure(args.case_seq, frames, one)
 
@@ -247,6 +287,10 @@ def main():
     print(f"\nMatch level (all seqs): rho(camera change at box, pred error) = {r_all:+.3f} (p={p_all:.1e}, n={n_ok})")
     r_all, p_all = rho(m.cam_flow_rel.values, m.pred_err.values)
     print(f"Match level (all seqs): rho(camera flow at box,   pred error) = {r_all:+.3f} (p={p_all:.1e})")
+    print("\nLost tracks (multi-step prediction), by frames since last update:")
+    print(piv.round(3).to_string())
+    print(f"Moving seqs: rho(camera motion during gap, best IoU) pooled = {lost_ctrl['rho_pooled']:+.3f}; "
+          f"median within the same gap length = {lost_ctrl['rho_within_gap_median']:+.3f} ({lost_ctrl['gap_lengths']} gap lengths)")
     print(f"Saved to {E3}")
 
 
