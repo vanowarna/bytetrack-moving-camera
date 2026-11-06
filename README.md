@@ -36,14 +36,37 @@ uv run python scripts/check_env.py
 
 ## 5. Reproduce
 ```bash
-uv run python scripts/make_splits.py                                  # half-val split + TrackEval self-test
-uv run python scripts/run_pipeline.py --config configs/p1_smoke.yaml  # detect -> track -> evaluate (MOT17-02)
+uv run python scripts/make_splits.py                                    # half-val split + TrackEval self-test
+uv run python scripts/run_pipeline.py --config configs/e1_default.yaml  # detect -> track -> evaluate, 7 sequences
 ```
 Steps can also be run one by one: `run_detect.py` (GPU, cached in `cache/dets/`), `run_track.py` (CPU), `run_eval.py`.
-Each run writes `results/<run_id>/` with `config.yaml`, `env.json`, `tracks/`, `metrics.json`, `metrics_per_seq.csv` and TrackEval outputs.
+Each run writes `results/<run_id>/` with the resolved `config.yaml`, `env.json`, `tracks/`, `metrics.json`,
+`metrics_per_seq.csv` and TrackEval outputs. Configs can inherit from another one with `base:`.
+
+### E1 — reproduction table
+```bash
+uv run python scripts/run_many.py --configs "configs/e1_*.yaml" --table e1
+```
+Runs the official setting and the variants below, then writes `results/tables/e1.{csv,md,tex}`.
+Only `e1_fp32` needs a second GPU pass; the others reuse the cached detections.
+
+| Config | What changes |
+|---|---|
+| `e1_default` | official `tools/track.py` settings (match 0.9, no interpolation) |
+| `e1_match08` | matching threshold 0.8, as implied by the paper text |
+| `e1_interp20` | + linear tracklet interpolation, interval 20 |
+| `e1_match08_interp20` | both of the above |
+| `e1_sort` | ByteTrack's SORT re-implementation on the same detections |
+| `e1_fp32` | detector in FP32 instead of FP16 |
+
+### E2 — static vs moving camera
+```bash
+uv run python scripts/analyze_e2.py --run e1_default --gap-runs e1_default e1_fp32 e1_interp20 e1_match08 e1_match08_interp20 e1_sort
+```
+Writes group/sequence tables (`.csv`, `.tex`) and figures to `results/e2/`.
 
 ## Credits
-- ByteTrack (MIT) — Zhang et al., ECCV 2022. Used unmodified from `external/ByteTrack`; see `src/bt_compat.py` for the compatibility shims.
+- ByteTrack (MIT) — Zhang et al., ECCV 2022. Used unmodified from `external/ByteTrack`; see `src/bt_compat.py` for the compatibility shims. `src/postprocess.py` re-implements its `tools/interpolation.py`.
 - TrackEval (MIT) — Luiten et al.
 - MOT17 — Milan et al., MOTChallenge (data not redistributed).
 

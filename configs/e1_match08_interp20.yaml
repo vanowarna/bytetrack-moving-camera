@@ -1,0 +1,7 @@
+# E1 gap study: match 0.8 + interpolation 20 (the setting BoT-SORT used for its ByteTrack baseline).
+base: e1_default.yaml
+run_id: e1_match08_interp20
+note: "match 0.8 + interpolation 20"
+tracker: {match_thresh: 0.8}
+postprocess:
+  interpolation: {n_min: 25, n_dti: 20}

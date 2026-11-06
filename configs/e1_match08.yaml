@@ -1,0 +1,5 @@
+# E1 gap study: matching threshold 0.8 (the value implied by the paper: reject if IoU < 0.2).
+base: e1_default.yaml
+run_id: e1_match08
+note: "match 0.8 (paper text)"
+tracker: {match_thresh: 0.8}

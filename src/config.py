@@ -20,12 +20,40 @@ STATIC = ["MOT17-02-FRCNN", "MOT17-04-FRCNN", "MOT17-09-FRCNN"]
 MOVING = ["MOT17-05-FRCNN", "MOT17-10-FRCNN", "MOT17-11-FRCNN", "MOT17-13-FRCNN"]
 GROUPS = {"static": STATIC, "moving": MOVING}
 
+# Sequence properties from the MOT16/17 benchmark paper (Milan et al., 2016, Table 2).
+SEQ_META = {
+    "MOT17-02-FRCNN": {"camera": "static", "viewpoint": "medium", "conditions": "cloudy"},
+    "MOT17-04-FRCNN": {"camera": "static", "viewpoint": "high", "conditions": "night"},
+    "MOT17-05-FRCNN": {"camera": "moving", "viewpoint": "medium", "conditions": "sunny"},
+    "MOT17-09-FRCNN": {"camera": "static", "viewpoint": "low", "conditions": "indoor"},
+    "MOT17-10-FRCNN": {"camera": "moving", "viewpoint": "medium", "conditions": "night"},
+    "MOT17-11-FRCNN": {"camera": "moving", "viewpoint": "medium", "conditions": "indoor"},
+    "MOT17-13-FRCNN": {"camera": "moving", "viewpoint": "high", "conditions": "sunny"},
+}
+GROUP_COLORS = {"static": "#2a78d6", "moving": "#eb6834"}
+
+
+def _deep_merge(base: dict, over: dict) -> dict:
+    out = dict(base)
+    for k, v in over.items():
+        out[k] = _deep_merge(out[k], v) if isinstance(v, dict) and isinstance(out.get(k), dict) else v
+    return out
+
+
+def _read_yaml(path: Path) -> dict:
+    """Read a YAML config; `base: other.yaml` (relative to this file) is loaded first and overridden."""
+    with open(path, encoding="utf-8") as f:
+        cfg = yaml.safe_load(f) or {}
+    if "base" in cfg:
+        parent = _read_yaml((path.parent / cfg.pop("base")).resolve())
+        cfg = _deep_merge(parent, cfg)
+    return cfg
+
 
 def load_config(path: str | Path) -> dict:
-    """Load a run config (YAML). `seqs: all` expands to the 7 sequences."""
+    """Load a run config (YAML). Supports `base:` inheritance; `seqs: all` expands to the 7 sequences."""
     path = Path(path)
-    with open(path, encoding="utf-8") as f:
-        cfg = yaml.safe_load(f)
+    cfg = _read_yaml(path)
     seqs = cfg.get("seqs", "all")
     if seqs == "all":
         seqs = list(SEQS)

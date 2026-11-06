@@ -1,0 +1,5 @@
+# E1 reference: ByteTrack's SORT re-implementation on the same detections (paper Table 2: 74.6 / 76.9 / 291).
+base: e1_default.yaml
+run_id: e1_sort
+note: "SORT on the same detections"
+tracker: {type: sort, sort_det_thresh: 0.4}

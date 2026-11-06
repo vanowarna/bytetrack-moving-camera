@@ -1,5 +1,6 @@
 # E1: official ByteTrack settings on the full MOT17 half-val split (7 sequences).
 run_id: e1_default
+note: "official settings (match 0.9, no interpolation)"
 seed: 0
 seqs: all
 
