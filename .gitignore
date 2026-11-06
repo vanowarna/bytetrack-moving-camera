@@ -31,6 +31,10 @@ __pycache__/
 .idea/
 
 # ---- latex build ----
+paper/appendix_ai.tex
+paper/*.fdb_latexmk
+paper/*.fls
+paper/*.pdf
 paper/*.aux
 paper/*.log
 paper/*.out

@@ -287,6 +287,37 @@ def main():
     print(f"\nMatch level (all seqs): rho(camera change at box, pred error) = {r_all:+.3f} (p={p_all:.1e}, n={n_ok})")
     r_all, p_all = rho(m.cam_flow_rel.values, m.pred_err.values)
     print(f"Match level (all seqs): rho(camera flow at box,   pred error) = {r_all:+.3f} (p={p_all:.1e})")
+    # ---- scalar summary for the paper (scripts/make_paper_assets.py reads this) ------------------------
+    import json
+    mm_ = m[m.group == "moving"]
+    q = mm_.cam_flow_rel.quantile([0.1, 0.9]).values
+    mv_rows = per_seq[per_seq.group == "moving"]
+    st_rows = per_seq[per_seq.group == "static"]
+    lt_get = lambda g, gap, col: float(lt[(lt.group == g) & (lt.gap.astype(str) == gap)][col].iloc[0])  # noqa: E731
+    summary = {
+        "motion_median_static": [float(st_rows.motion_median.min()), float(st_rows.motion_median.max())],
+        "motion_median_moving": [float(mv_rows.motion_median.min()), float(mv_rows.motion_median.max())],
+        "rho_motion_iou_moving": [float(mv_rows.rho_motion_iou.min()), float(mv_rows.rho_motion_iou.max())],
+        "rho_motion_iou_static": [float(st_rows.rho_motion_iou.min()), float(st_rows.rho_motion_iou.max())],
+        "pred_iou_static": [float(st_rows.pred_iou.min()), float(st_rows.pred_iou.max())],
+        "pred_iou_moving": [float(mv_rows.pred_iou.min()), float(mv_rows.pred_iou.max())],
+        "err_low_flow_moving": float(mm_[mm_.cam_flow_rel <= q[0]].pred_err.median()),
+        "err_high_flow_moving": float(mm_[mm_.cam_flow_rel >= q[1]].pred_err.median()),
+        "rho_flow_err": rho(m.cam_flow_rel.values, m.pred_err.values)[0],
+        "rho_change_err": rho(m.cam_change_rel.values, m.pred_err.values)[0],
+        "n_matches": int((np.isfinite(m.cam_flow_rel) & np.isfinite(m.pred_err)).sum()),
+        "fit_ok_min": float(per_seq.fit_ok_pct.min()),
+        "lost_rematch_9_16": {"static": lt_get("static", "9-16", "rematch_pct"), "moving": lt_get("moving", "9-16", "rematch_pct")},
+        "lost_bestiou_9_16": {"static": lt_get("static", "9-16", "best_iou"), "moving": lt_get("moving", "9-16", "best_iou")},
+        "lost_ctrl": lost_ctrl,
+    }
+    if len(strat):
+        for half in ("high motion", "low motion"):
+            r = tot[tot.half == half].iloc[0]
+            summary[half.replace(" ", "_")] = {"switch": int(r["switch"]), "gt": int(r["gt"]),
+                                               "switch_per_1k": float(r["switch_per_1k"]), "iou": float(r["iou"])}
+    (E3 / "e3_summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
+
     print("\nLost tracks (multi-step prediction), by frames since last update:")
     print(piv.round(3).to_string())
     print(f"Moving seqs: rho(camera motion during gap, best IoU) pooled = {lost_ctrl['rho_pooled']:+.3f}; "
