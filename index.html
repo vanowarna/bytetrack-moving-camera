@@ -1,0 +1,869 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ByteTrack Under Camera Motion</title>
+<meta name="description" content="Reproduction of ByteTrack on MOT17 and an analysis of why moving cameras lose 10.9 HOTA: lost tracks are not re-found.">
+<meta property="og:title" content="ByteTrack Under Camera Motion">
+<meta property="og:description" content="ByteTrack reproduced exactly on MOT17; moving cameras lose 10.9 HOTA, mainly because lost tracks are not re-found.">
+<meta property="og:image" content="assets/demo_poster.jpg">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='3' y='7' width='12' height='20' rx='2' fill='none' stroke='%231A73E8' stroke-width='3'/%3E%3Crect x='14' y='5' width='12' height='20' rx='2' fill='none' stroke='%23E8710A' stroke-width='3' stroke-dasharray='4 3'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400..800&family=Roboto:wght@400;500;700&family=Google+Sans+Code:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#F8F9FA; --surface:#FFFFFF; --ink:#202124; --ink2:#3C4043; --muted:#5F6368; --line:#DADCE0; --grid:#E8EAED;
+  --static:#1A73E8; --moving:#E8710A; --accent:#1A73E8; --code-bg:#F1F3F4; --hero:#202124; --hero-ink:#F8F9FA;
+  --hero-muted:#BDC1C6; --chip:#E8F0FE;
+  --radius:16px; --max:1120px;
+  --font-head:Figtree, Arial, sans-serif; --font-body:Roboto, Arial, sans-serif; --font-code:'Google Sans Code','Courier New',monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#131314; --surface:#1F1F1F; --ink:#E8EAED; --ink2:#C4C7C5; --muted:#9AA0A6; --line:#3C4043; --grid:#2D2F31;
+    --static:#4285F4; --moving:#D96B00; --accent:#8AB4F8; --code-bg:#2A2B2E; --hero:#0B0B0C; --chip:#22314A;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#131314; --surface:#1F1F1F; --ink:#E8EAED; --ink2:#C4C7C5; --muted:#9AA0A6; --line:#3C4043; --grid:#2D2F31;
+  --static:#4285F4; --moving:#D96B00; --accent:#8AB4F8; --code-bg:#2A2B2E; --hero:#0B0B0C; --chip:#22314A;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:72px}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font-body);font-size:17px;line-height:1.6;-webkit-font-smoothing:antialiased}
+a{color:var(--accent);text-decoration:none} a:hover{text-decoration:underline}
+h1,h2,h3{font-family:var(--font-head);letter-spacing:-.02em;margin:0}
+h2{font-size:clamp(28px,4vw,44px);font-weight:650;line-height:1.12}
+h3{font-size:20px;font-weight:600;line-height:1.3}
+p{margin:0}
+code,pre{font-family:var(--font-code)}
+.wrap{max-width:var(--max);margin:0 auto;padding:0 24px}
+@media (max-width:600px){.wrap{padding:0 16px}}
+
+/* nav */
+nav.top{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+nav.top .wrap{display:flex;align-items:center;gap:20px;height:60px}
+nav.top .brand{font-family:var(--font-head);font-weight:700;color:var(--ink);white-space:nowrap}
+nav.top .links{display:flex;gap:18px;overflow-x:auto;scrollbar-width:none;flex:1;min-width:0}
+nav.top .links::-webkit-scrollbar{display:none}
+nav.top .links a{color:var(--muted);font-size:15px;white-space:nowrap}
+nav.top .links a.on{color:var(--ink);font-weight:500}
+.iconbtn{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:999px;width:36px;height:36px;display:grid;place-items:center;cursor:pointer;flex:none}
+@media (max-width:700px){nav.top .brand{display:none}}
+
+/* hero */
+header.hero{background:var(--hero);color:var(--hero-ink);padding:88px 0 72px;position:relative;overflow:hidden}
+.eyebrow{font-size:14px;font-weight:500;letter-spacing:.18em;text-transform:uppercase;color:var(--accent)}
+header.hero .eyebrow{color:#8AB4F8}
+header.hero h1{font-size:clamp(40px,7vw,84px);font-weight:750;line-height:1.02;letter-spacing:-.035em;margin:16px 0 20px;max-width:900px}
+header.hero .sub{font-size:clamp(18px,2.2vw,24px);color:var(--hero-muted);max-width:760px}
+header.hero .who{margin-top:28px;color:var(--hero-muted);font-size:16px}
+header.hero .who b{color:var(--hero-ink);font-weight:500}
+.btns{display:flex;flex-wrap:wrap;gap:12px;margin-top:32px}
+.btn{display:inline-flex;align-items:center;gap:8px;padding:11px 20px;border-radius:999px;font-weight:500;font-size:16px;border:1px solid #5F6368;color:#F8F9FA;background:transparent}
+.btn:hover{text-decoration:none;background:#3C4043}
+.btn.primary{background:#8AB4F8;color:#202124;border-color:#8AB4F8}
+.btn.primary:hover{background:#AECBFA}
+.btn svg{width:18px;height:18px}
+#heroCanvas{position:absolute;inset:0;width:100%;height:100%;opacity:.35;pointer-events:none}
+header.hero .wrap{position:relative}
+
+/* sections */
+section{padding:88px 0;border-bottom:1px solid var(--line)}
+section .lead{font-size:19px;color:var(--ink2);max-width:780px;margin-top:16px}
+.grid{display:grid;gap:20px}
+.g4{grid-template-columns:repeat(4,1fr)} .g3{grid-template-columns:repeat(3,1fr)} .g2{grid-template-columns:repeat(2,1fr)}
+@media (max-width:900px){.g4{grid-template-columns:repeat(2,1fr)} .g3{grid-template-columns:1fr}}
+@media (max-width:700px){.g2{grid-template-columns:1fr}}
+@media (max-width:480px){.g4{grid-template-columns:1fr}}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:24px}
+.card h3{margin-bottom:6px}
+.card .note{color:var(--muted);font-size:14px;margin-top:10px}
+.stat .big{font-family:var(--font-head);font-size:clamp(36px,4.4vw,52px);font-weight:700;letter-spacing:-.03em;line-height:1.05}
+.stat .lbl{color:var(--ink2);font-size:15px;margin-top:8px}
+.stat .src{color:var(--muted);font-size:13px;margin-top:10px}
+.mt{margin-top:40px} .mt2{margin-top:20px}
+.static-c{color:var(--static)} .moving-c{color:var(--moving)}
+.takeaway{border-left:4px solid var(--accent);padding:6px 0 6px 18px;margin-top:28px;font-size:18px;color:var(--ink);max-width:820px}
+.takeaway b{font-weight:600}
+
+/* controls */
+.controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:16px}
+.controls .lab{font-size:14px;color:var(--muted);margin-right:4px}
+.seg{display:inline-flex;flex-wrap:wrap;border:1px solid var(--line);border-radius:999px;padding:3px;background:var(--surface);gap:2px}
+.seg button{font:inherit;font-size:14px;border:0;background:transparent;color:var(--ink2);padding:6px 14px;border-radius:999px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--chip);color:var(--ink);font-weight:500}
+.seg button:focus-visible,.iconbtn:focus-visible,.btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.legend{display:flex;gap:18px;flex-wrap:wrap;font-size:14px;color:var(--ink2)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.sw{width:12px;height:12px;border-radius:3px;display:inline-block}
+.sw.line{height:3px;border-radius:2px;width:18px}
+.sw.dash{height:0;border-top:2px dashed var(--muted);width:18px;border-radius:0}
+
+/* charts */
+.chart{width:100%;position:relative}
+.chart svg{display:block;width:100%;height:auto;overflow:visible}
+.chart text{font-family:var(--font-body);fill:var(--muted);font-size:12px}
+.chart .val{fill:var(--ink);font-size:12px;font-weight:500}
+.chart .lab{fill:var(--ink2);font-size:13px}
+@media (max-width:520px){.chart .lab{font-size:11px}}
+.chart .grid line{stroke:var(--grid)}
+.chart .axis line,.chart .axis path{stroke:var(--line)}
+#tip{position:fixed;z-index:50;pointer-events:none;background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:8px 12px;font-size:13px;line-height:1.45;box-shadow:0 4px 16px rgba(0,0,0,.14);opacity:0;transition:opacity .08s;max-width:260px}
+#tip b{font-weight:600} #tip .k{color:var(--muted)}
+#tip .row{display:flex;align-items:center;gap:6px}
+
+/* pipeline */
+.pipe svg{width:100%;height:auto;display:block}
+.pipe text{font-family:var(--font-body);fill:var(--ink)}
+.pipe .node rect{fill:var(--surface);stroke:var(--line);stroke-width:1.5}
+.pipe .node.hot rect{stroke:var(--moving);stroke-width:2.5}
+.pipe .sub{fill:var(--muted);font-size:12px}
+.pipe .arrow{stroke:var(--muted);stroke-width:2;fill:none;marker-end:url(#ah)}
+
+/* explainer */
+.explainer{display:grid;grid-template-columns:1.1fr 1fr;gap:28px;align-items:center}
+@media (max-width:800px){.explainer{grid-template-columns:1fr}}
+.slider{display:grid;gap:4px;margin-top:14px}
+.slider label{display:flex;justify-content:space-between;font-size:14px;color:var(--ink2)}
+.slider label b{font-family:var(--font-code);font-weight:500;color:var(--ink)}
+input[type=range]{width:100%;accent-color:var(--accent)}
+.iouread{font-family:var(--font-head);font-size:44px;font-weight:700;line-height:1}
+.badge{display:inline-block;padding:3px 10px;border-radius:999px;font-size:13px;font-weight:500;margin-left:8px;vertical-align:middle}
+.badge.ok{background:#E6F4EA;color:#137333} .badge.no{background:#FCE8E6;color:#A50E0E}
+:root[data-theme="dark"] .badge.ok{background:#0D3B1E;color:#81C995} :root[data-theme="dark"] .badge.no{background:#4A1512;color:#F28B82}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .badge.ok{background:#0D3B1E;color:#81C995} :root:not([data-theme="light"]) .badge.no{background:#4A1512;color:#F28B82}}
+
+/* table */
+.tbl-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:14px;font-variant-numeric:tabular-nums}
+th,td{padding:9px 12px;text-align:right;border-bottom:1px solid var(--grid);white-space:nowrap}
+th{font-weight:500;color:var(--muted);background:var(--surface);position:sticky;top:0}
+th:first-child,td:first-child,th:nth-child(2),td:nth-child(2){text-align:left}
+tr:last-child td{border-bottom:0}
+details{margin-top:16px} summary{cursor:pointer;color:var(--accent);font-size:15px}
+
+/* code */
+.codeblock{position:relative;background:var(--code-bg);border-radius:12px;padding:16px 18px;font-size:14px;overflow-x:auto;margin:0}
+.codeblock .c{color:var(--muted)}
+.copy{position:absolute;top:8px;right:8px;font:inherit;font-size:12px;padding:4px 10px;border-radius:999px;border:1px solid var(--line);background:var(--surface);color:var(--ink2);cursor:pointer}
+.steps{counter-reset:s;display:grid;gap:18px}
+.step{display:grid;grid-template-columns:40px minmax(0,1fr);gap:14px;align-items:start}
+.step::before{counter-increment:s;content:counter(s);width:32px;height:32px;border-radius:50%;background:var(--chip);color:var(--accent);display:grid;place-items:center;font-weight:600;font-family:var(--font-head)}
+.step h3{font-size:17px;margin-bottom:8px}
+
+video{width:100%;border-radius:var(--radius);display:block;background:#000}
+.vidcap{display:flex;gap:20px;flex-wrap:wrap;color:var(--muted);font-size:14px;margin-top:12px}
+footer{padding:48px 0 64px;color:var(--muted);font-size:14px}
+footer ol{padding-left:22px;margin:12px 0 0}
+footer li{margin:4px 0}
+.small{font-size:14px;color:var(--muted)}
+@media (prefers-reduced-motion: reduce){html{scroll-behavior:auto} #heroCanvas{display:none}}
+</style>
+</head>
+<body>
+<div id="tip" role="status" aria-live="polite"></div>
+
+<nav class="top" aria-label="Sections">
+  <div class="wrap">
+    <span class="brand">ByteTrack × camera motion</span>
+    <div class="links">
+      <a href="#overview">Overview</a><a href="#idea">Idea</a><a href="#e1">Reproduction</a><a href="#e2">Static vs moving</a>
+      <a href="#e3">Mechanism</a><a href="#e4">Sensitivity</a><a href="#demo">Demo</a><a href="#reproduce">Reproduce</a><a href="#cite">Cite</a>
+    </div>
+    <button class="iconbtn" id="themeBtn" aria-label="Toggle dark mode" title="Toggle dark mode">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+    </button>
+  </div>
+</nav>
+
+<header class="hero" id="overview">
+  <canvas id="heroCanvas" aria-hidden="true"></canvas>
+  <div class="wrap">
+    <p class="eyebrow">Reproduction &amp; analysis · MOT17</p>
+    <h1>ByteTrack Under Camera Motion</h1>
+    <p class="sub">ByteTrack reproduces exactly. On moving cameras it loses <span style="color:#FDAE6B">10.9 HOTA</span>, and the loss is not in frame-to-frame matching: <b style="color:#F8F9FA;font-weight:500">lost tracks are not found again.</b></p>
+    <p class="who"><b>Vanodhya Warnasooriya</b> · Department of Electrical Engineering, Chulalongkorn University · 2102515 Digital Video Processing, 2026</p>
+    <div class="btns">
+      <a class="btn primary" href="assets/paper.pdf"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/></svg>Paper</a>
+      <a class="btn" href="https://github.com/vanowarna/bytetrack-moving-camera"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 0 0-3.2 19.5c.5.1.7-.2.7-.5v-1.7c-2.8.6-3.4-1.3-3.4-1.3-.4-1.2-1.1-1.5-1.1-1.5-.9-.6.1-.6.1-.6 1 .1 1.5 1 1.5 1 .9 1.6 2.4 1.1 3 .9.1-.7.4-1.1.6-1.4-2.2-.3-4.6-1.1-4.6-5 0-1.1.4-2 1-2.7-.1-.3-.4-1.3.1-2.7 0 0 .8-.3 2.8 1a9.6 9.6 0 0 1 5 0c1.9-1.3 2.8-1 2.8-1 .5 1.4.2 2.4.1 2.7.6.7 1 1.6 1 2.7 0 3.9-2.4 4.7-4.6 5 .4.3.7.9.7 1.9V21c0 .3.2.6.7.5A10 10 0 0 0 12 2z"/></svg>Code</a>
+      <a class="btn" href="assets/slides.pdf"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M12 16v4M8 20h8"/></svg>Slides</a>
+      <a class="btn" href="#demo"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>Demo</a>
+    </div>
+  </div>
+</header>
+
+<section id="results-glance">
+  <div class="wrap">
+    <p class="eyebrow">At a glance</p>
+    <h2 style="margin-top:12px">Four numbers that tell the story</h2>
+    <div class="grid g4 mt">
+      <div class="card stat"><div class="big" id="s-repro">–</div><div class="lbl">MOTA / IDF1 reproduced, equal to the paper</div><div class="src">MOT17 half-val, official code and weights</div></div>
+      <div class="card stat"><div class="big moving-c" id="s-gap">–</div><div class="lbl">HOTA lost on moving cameras</div><div class="src" id="s-gap-src">static vs moving sequences</div></div>
+      <div class="card stat"><div class="big" id="s-share">–</div><div class="lbl">of ID switches come from moving cameras, with only <span id="s-share-gt">–</span> of the boxes</div><div class="src">identity errors are concentrated there</div></div>
+      <div class="card stat"><div class="big" id="s-lost">–</div><div class="lbl">of lost tracks re-found after 9–16 frames: <span class="moving-c">moving</span> vs <span class="static-c">static</span></div><div class="src">the mechanism behind the gap</div></div>
+    </div>
+  </div>
+</section>
+
+<section id="idea">
+  <div class="wrap">
+    <p class="eyebrow">The idea</p>
+    <h2 style="margin-top:12px">A moving camera looks like everyone is moving</h2>
+    <p class="lead">ByteTrack predicts each person with a constant-velocity Kalman filter <i>in image coordinates</i>, then matches predictions to detections by overlap (IoU). When the camera pans, every box shifts, even for people standing still. Where does that hurt?</p>
+    <div class="card mt pipe" aria-label="Pipeline diagram">
+      <svg id="pipeSvg" viewBox="0 0 1060 250" role="img" aria-label="Frames go to the YOLOX-X detector, then the Kalman prediction, then IoU matching of high- and low-score boxes, then tracks. Camera motion shifts the whole image and enters at the prediction step. We measure camera motion with ORB features and RANSAC, and log every prediction."></svg>
+    </div>
+    <div class="card mt2">
+      <div class="explainer">
+        <div>
+          <h3>Try it: how far can a prediction drift before matching fails?</h3>
+          <p class="small" style="margin-top:6px">Illustration, not measured data. A person stands still; the camera pans by <i>s</i> pixels per frame. The filter, unaware of the camera, keeps the box where it was, so the prediction is off by <i>s · k</i> after <i>k</i> frames without a match. ByteTrack accepts a match when IoU &gt; 0.1 (matching threshold 0.9).</p>
+          <div class="slider"><label for="sPan">Camera pan per frame <b id="vPan"></b></label><input id="sPan" type="range" min="0" max="12" step="0.5" value="4"></div>
+          <div class="slider"><label for="sGap">Frames since the track was last matched <b id="vGap"></b></label><input id="sGap" type="range" min="1" max="16" step="1" value="6"></div>
+          <div style="margin-top:20px"><span class="small">IoU between prediction and detection</span><br><span class="iouread" id="vIou">–</span><span id="vBadge" class="badge"></span></div>
+          <p class="small" style="margin-top:12px">At one frame, even a fast pan keeps the IoU high. After several lost frames the same pan pushes the prediction off the person. That is what the measurements in E3 show.</p>
+        </div>
+        <div class="chart"><svg id="explSvg" viewBox="0 0 360 260" role="img" aria-label="A detection box and a dashed Kalman prediction box that separate as camera pan and lost frames increase"></svg></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="e1">
+  <div class="wrap">
+    <p class="eyebrow">E1 · Reproduction</p>
+    <h2 style="margin-top:12px">The published numbers reproduce exactly</h2>
+    <p class="lead">Official code (commit <code>d1bf019</code>), official weights, MOT17 half-val. The paper’s text implies a matching threshold of 0.8, but its numbers come from the code’s default of 0.9.</p>
+    <div class="card mt">
+      <div class="controls"><span class="lab">Metric</span>
+        <div class="seg" id="e1Metric"></div>
+      </div>
+      <div class="legend" style="margin-bottom:8px"><span><i class="sw" style="background:var(--accent)"></i>this study</span><span><i class="sw dash"></i>published value</span></div>
+      <div class="chart" id="e1Chart"></div>
+      <p class="note">MOTA, IDF1, ID switches: ByteTrack’s own evaluation (py-motmetrics). HOTA: TrackEval. Our HOTA of 67.9 also matches the 67.88 reported for ByteTrack by BoT-SORT [6].</p>
+    </div>
+  </div>
+</section>
+
+<section id="e2">
+  <div class="wrap">
+    <p class="eyebrow">E2 · Static vs moving camera</p>
+    <h2 style="margin-top:12px">Moving cameras lose mostly in association</h2>
+    <p class="lead">MOT17-02, 04 and 09 are filmed from a static camera; MOT17-05, 10, 11 and 13 from a moving one. Same detector, same tracker, same settings.</p>
+    <div class="grid g2 mt">
+      <div class="card">
+        <h3>HOTA and its two parts</h3>
+        <div class="legend mt2" style="margin-bottom:6px"><span><i class="sw" style="background:var(--static)"></i>static</span><span><i class="sw" style="background:var(--moving)"></i>moving</span></div>
+        <div class="chart" id="e2Groups"></div>
+        <p class="note">DetA: detection accuracy. AssA: association accuracy (keeping the same ID).</p>
+      </div>
+      <div class="card">
+        <h3>Who causes the identity switches?</h3>
+        <div class="legend mt2" style="margin-bottom:6px"><span><i class="sw" style="background:var(--static)"></i>static</span><span><i class="sw" style="background:var(--moving)"></i>moving</span></div>
+        <div class="chart" id="e2Share"></div>
+        <p class="note" id="e2ShareNote"></p>
+      </div>
+    </div>
+    <div class="card mt2">
+      <h3>Per sequence</h3>
+      <div class="controls mt2"><span class="lab">Show</span><div class="seg" id="seqMetric"></div></div>
+      <div class="chart" id="e2Seq"></div>
+      <p class="note">The measurable confounds favour the moving group: fewer people per frame and larger people. Crowding cannot explain the gap.</p>
+      <details><summary>Show as a table</summary><div class="tbl-wrap mt2" id="seqTable"></div></details>
+    </div>
+    <div class="card mt2">
+      <h3>The gap is stable</h3>
+      <p class="small">HOTA gap (static − moving) under the six E1 settings. The AssA gap is larger than the DetA gap in every one.</p>
+      <div class="legend mt2" style="margin-bottom:6px"><span><i class="sw" style="background:var(--muted)"></i>HOTA gap</span><span><i class="sw" style="background:var(--grid);outline:1px solid var(--line)"></i>DetA gap</span><span><i class="sw" style="background:var(--ink2)"></i>AssA gap</span></div>
+      <div class="chart" id="e2Gap"></div>
+    </div>
+  </div>
+</section>
+
+<section id="e3">
+  <div class="wrap">
+    <p class="eyebrow">E3 · Mechanism</p>
+    <h2 style="margin-top:12px">The prediction suffers, but matching survives. Re-finding fails.</h2>
+    <p class="lead">Camera motion is measured per frame (ORB features, people masked, RANSAC similarity fit) and every Kalman prediction is logged without changing a single result.</p>
+
+    <div class="card mt">
+      <h3>Frame by frame</h3>
+      <div class="controls mt2"><span class="lab">Sequence</span><div class="seg" id="tlSeq"></div></div>
+      <div class="chart" id="tlMotion"></div>
+      <div class="chart" id="tlIou" style="margin-top:8px"></div>
+      <p class="note">Top: camera motion, % of the image diagonal per frame. Bottom: mean IoU of one-frame predictions with their matched detections; ticks mark identity switches. Hover to read a frame.</p>
+    </div>
+
+    <div class="grid g3 mt2">
+      <div class="card stat"><div class="big"><span id="m3a"></span></div><div class="lbl">camera motion per frame, static (≤) vs moving</div><div class="src">about a hundred times more</div></div>
+      <div class="card stat"><div class="big" id="m3b"></div><div class="lbl">prediction error (box heights), lowest vs highest 10% of camera flow</div><div class="src" id="m3bs"></div></div>
+      <div class="card stat"><div class="big" id="m3c"></div><div class="lbl">ID switches per 1k boxes, high- vs low-motion halves</div><div class="src">no clear difference: matching still works</div></div>
+    </div>
+
+    <div class="card mt2">
+      <h3>Lost tracks: the real cost</h3>
+      <div class="controls mt2"><span class="lab">Show</span><div class="seg" id="lostMetric"></div></div>
+      <div class="legend" style="margin-bottom:6px"><span><i class="sw line" style="background:var(--static)"></i>static</span><span><i class="sw line" style="background:var(--moving)"></i>moving</span></div>
+      <div class="chart" id="lostChart"></div>
+      <p class="note">A lost track’s prediction is extrapolated over several frames. With a moving camera it drifts off the person, so the track comes back with a new ID: that is the larger AssA gap of E2.</p>
+    </div>
+    <p class="takeaway">Camera motion degrades the one-frame Kalman prediction measurably, but the predicted box still overlaps its detection well enough. <b>The cost appears when a lost track must be found again.</b></p>
+  </div>
+</section>
+
+<section id="e4">
+  <div class="wrap">
+    <p class="eyebrow">E4 · Sensitivity</p>
+    <h2 style="margin-top:12px">The gap persists in all 15 settings</h2>
+    <p class="lead">One parameter at a time around the official settings. This is a sensitivity study, not a fix.</p>
+    <div class="card mt">
+      <div class="controls"><span class="lab">Parameter</span><div class="seg" id="e4Param"></div></div>
+      <div class="legend" style="margin-bottom:6px"><span><i class="sw line" style="background:var(--static)"></i>static</span><span><i class="sw line" style="background:var(--moving)"></i>moving</span><span><i class="sw dash"></i>official value</span></div>
+      <div class="chart" id="e4Chart"></div>
+      <p class="note" id="e4Note"></p>
+    </div>
+    <p class="takeaway">Only the Kalman <b>process noise</b> moves the moving-camera result: trusting constant velocity more hurts moving cameras; allowing faster change helps them. The motion model is the part to study next, for example camera-motion compensation [6].</p>
+  </div>
+</section>
+
+<section id="demo">
+  <div class="wrap">
+    <p class="eyebrow">Demo</p>
+    <h2 style="margin-top:12px">One command, one sequence, one number</h2>
+    <p class="lead"><code>uv run python scripts/demo.py</code> detects, tracks and evaluates MOT17-13 (moving camera) and reproduces HOTA 64.8.</p>
+    <div class="mt">
+      <video controls muted loop playsinline preload="metadata" poster="assets/demo_poster.jpg">
+        <source src="assets/demo.mp4" type="video/mp4">
+      </video>
+      <div class="vidcap"><span>Left: input frames</span><span>Right: tracks with IDs; dashed orange = Kalman predictions</span><span>MOT17-13 validation half</span></div>
+    </div>
+  </div>
+</section>
+
+<section id="reproduce">
+  <div class="wrap">
+    <p class="eyebrow">Reproduce</p>
+    <h2 style="margin-top:12px">From a clean machine to Table I</h2>
+    <p class="lead">Every number in the paper and on this page is generated from the files in <code>results/</code>; none is typed by hand.</p>
+    <div class="steps mt">
+      <div class="step"><div><h3>Environment (uv, CUDA 12.8)</h3><pre class="codeblock"><button class="copy">Copy</button>git clone https://github.com/vanowarna/bytetrack-moving-camera
+cd bytetrack-moving-camera
+uv sync
+bash scripts/setup_external.sh   <span class="c"># Windows: scripts\setup_external.ps1</span></pre></div></div>
+      <div class="step"><div><h3>Weights and data</h3><p class="small">Place <code>bytetrack_ablation.pth.tar</code> from the ByteTrack model zoo in <code>weights/</code> and MOT17 in <code>data/mot/</code> (see README).</p></div></div>
+      <div class="step"><div><h3>Split, then Table I</h3><pre class="codeblock"><button class="copy">Copy</button>uv run python scripts/make_splits.py
+uv run python scripts/run_many.py --configs "configs/e1_*.yaml" --table e1</pre></div></div>
+      <div class="step"><div><h3>E2 – E4 and all paper assets</h3><pre class="codeblock"><button class="copy">Copy</button>uv run python scripts/analyze_e2.py
+uv run python scripts/run_camera_motion.py --config configs/e1_default.yaml
+uv run python scripts/run_e3_log.py --config configs/e1_default.yaml
+uv run python scripts/analyze_e3.py --case-seq MOT17-13-FRCNN
+uv run python scripts/make_e4_configs.py
+uv run python scripts/run_many.py --configs "configs/e4/*.yaml" --table e4
+uv run python scripts/analyze_e4.py
+uv run python scripts/make_paper_assets.py</pre></div></div>
+    </div>
+    <p class="small mt2" id="envLine"></p>
+  </div>
+</section>
+
+<section id="cite">
+  <div class="wrap">
+    <p class="eyebrow">Cite</p>
+    <h2 style="margin-top:12px">BibTeX</h2>
+    <pre class="codeblock mt2"><button class="copy">Copy</button>@misc{warnasooriya2026bytetrackcamera,
+  title  = {ByteTrack Under Camera Motion: Reproduction and Error Analysis on MOT17},
+  author = {Warnasooriya, Vanodhya},
+  year   = {2026},
+  note   = {Term project, 2102515 Digital Video Processing, Chulalongkorn University},
+  url    = {https://github.com/vanowarna/bytetrack-moving-camera}
+}</pre>
+    <h3 class="mt">Limitations</h3>
+    <p class="small" style="margin-top:8px;max-width:820px">Seven sequences, so all evidence is correlational; the groups also differ in frame rate, viewpoint and lighting. The camera model is a 2-D similarity transform (no parallax). One detector and one tracker; one parameter changed at a time.</p>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <b style="color:var(--ink)">References</b>
+    <ol>
+      <li>Y. Zhang et al., “ByteTrack: Multi-Object Tracking by Associating Every Detection Box,” ECCV 2022 · <a href="https://arxiv.org/abs/2110.06864">arXiv:2110.06864</a> · <a href="https://github.com/ifzhang/ByteTrack">code</a></li>
+      <li>A. Milan et al., “MOT16: A Benchmark for Multi-Object Tracking,” 2016 · <a href="https://arxiv.org/abs/1603.00831">arXiv:1603.00831</a></li>
+      <li>E. Rublee et al., “ORB: An Efficient Alternative to SIFT or SURF,” ICCV 2011</li>
+      <li>M. A. Fischler and R. C. Bolles, “Random Sample Consensus,” Commun. ACM 24(6), 1981</li>
+      <li>J. Luiten et al., “HOTA: A Higher Order Metric for Evaluating Multi-Object Tracking,” IJCV 2021 · <a href="https://arxiv.org/abs/2009.07736">arXiv:2009.07736</a> · <a href="https://github.com/JonathonLuiten/TrackEval">TrackEval</a></li>
+      <li>N. Aharon et al., “BoT-SORT: Robust Associations Multi-Pedestrian Tracking,” 2022 · <a href="https://arxiv.org/abs/2206.14651">arXiv:2206.14651</a></li>
+    </ol>
+    <p style="margin-top:24px">© 2026 Vanodhya Warnasooriya · Code under the MIT license · MOT17 data is not redistributed · <a href="https://vanowarna.com">vanowarna.com</a></p>
+  </div>
+</footer>
+
+<script src="data/results.js"></script>
+<script>
+(() => {
+const R = window.RESULTS;
+const $ = s => document.querySelector(s);
+const NS = 'http://www.w3.org/2000/svg';
+const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const fmt = (v, d = 1) => (v == null ? '–' : Number(v).toFixed(d));
+
+/* ---------- theme ---------- */
+const themeBtn = $('#themeBtn');
+try { const t = localStorage.getItem('theme'); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
+themeBtn.addEventListener('click', () => {
+  const dark = document.documentElement.dataset.theme
+    ? document.documentElement.dataset.theme === 'dark'
+    : matchMedia('(prefers-color-scheme: dark)').matches;
+  const next = dark ? 'light' : 'dark';
+  document.documentElement.dataset.theme = next;
+  try { localStorage.setItem('theme', next); } catch (e) {}
+  renderAll();
+});
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', renderAll);
+
+/* ---------- svg helpers ---------- */
+function el(tag, attrs = {}, parent) {
+  const e = document.createElementNS(NS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (parent) parent.appendChild(e);
+  return e;
+}
+function txt(parent, x, y, s, attrs = {}) {
+  const a = { ...attrs }; const st = [];
+  if (a.fill) { st.push('fill:' + a.fill); delete a.fill; }
+  if (a['font-size']) { st.push('font-size:' + a['font-size'] + 'px'); delete a['font-size']; }
+  if (a['font-weight']) { st.push('font-weight:' + a['font-weight']); delete a['font-weight']; }
+  if (st.length) a.style = st.join(';');
+  const t = el('text', { x, y, ...a }, parent); t.textContent = s; return t;
+}
+function svgIn(container, w, h, label) {
+  container.innerHTML = '';
+  const s = el('svg', { viewBox: `0 0 ${w} ${h}`, role: 'img', 'aria-label': label || '' }, container);
+  return s;
+}
+// bar with rounded data end (4px) anchored to the baseline
+function hbar(g, x0, y, len, h, fill) {
+  const r = Math.min(4, len / 2, h / 2);
+  if (len <= 0) return el('rect', { x: x0, y, width: 0, height: h, fill }, g);
+  return el('path', { d: `M${x0},${y}H${x0 + len - r}Q${x0 + len},${y} ${x0 + len},${y + r}V${y + h - r}Q${x0 + len},${y + h} ${x0 + len - r},${y + h}H${x0}Z`, fill }, g);
+}
+function vbar(g, x, y0, w, len, fill) {
+  const r = Math.min(4, len / 2, w / 2);
+  if (len <= 0) return el('rect', { x, y: y0, width: w, height: 0, fill }, g);
+  const yt = y0 - len;
+  return el('path', { d: `M${x},${y0}V${yt + r}Q${x},${yt} ${x + r},${yt}H${x + w - r}Q${x + w},${yt} ${x + w},${yt + r}V${y0}Z`, fill }, g);
+}
+const widthOf = c => Math.max(300, Math.round(c.clientWidth || c.parentElement.clientWidth || 600));
+
+/* ---------- tooltip ---------- */
+const tip = $('#tip');
+function showTip(html, ev) {
+  tip.innerHTML = html; tip.style.opacity = 1;
+  const pad = 14, r = tip.getBoundingClientRect();
+  let x = ev.clientX + pad, y = ev.clientY + pad;
+  if (x + r.width > innerWidth - 8) x = ev.clientX - r.width - pad;
+  if (y + r.height > innerHeight - 8) y = ev.clientY - r.height - pad;
+  tip.style.left = x + 'px'; tip.style.top = y + 'px';
+}
+function hideTip() { tip.style.opacity = 0; }
+function hover(node, htmlFn) {
+  node.style.cursor = 'default';
+  node.addEventListener('pointermove', ev => showTip(htmlFn(ev), ev));
+  node.addEventListener('pointerleave', hideTip);
+}
+const dot = c => `<i class="sw" style="background:${c}"></i>`;
+
+/* ---------- segmented control ---------- */
+function seg(container, options, initial, onChange) {
+  container.innerHTML = '';
+  options.forEach(([key, label]) => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.textContent = label; b.setAttribute('aria-pressed', key === initial);
+    b.addEventListener('click', () => {
+      container.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', 'false'));
+      b.setAttribute('aria-pressed', 'true'); onChange(key);
+    });
+    container.appendChild(b);
+  });
+}
+
+/* ---------- stats ---------- */
+const def = R.e1.find(r => r.run === 'e1_default');
+const G = R.groups;
+const gapH = G.static.HOTA - G.moving.HOTA;
+$('#s-repro').textContent = `${fmt(def.MOTA)} / ${fmt(def.IDF1)}`;
+$('#s-gap').textContent = `−${fmt(gapH)}`;
+$('#s-gap-src').textContent = `HOTA ${fmt(G.static.HOTA)} static vs ${fmt(G.moving.HOTA)} moving`;
+$('#s-share').innerHTML = `<span class="moving-c">${Math.round(G.moving.share_IDSW)}%</span>`;
+$('#s-share-gt').textContent = `${Math.round(G.moving.share_GT)}%`;
+const l916 = g => R.lost.find(r => r.group === g && r.gap === '9-16');
+$('#s-lost').innerHTML = `<span class="moving-c">${fmt(l916('moving').refound)}%</span> <span style="font-size:.5em;color:var(--muted)">vs</span> <span class="static-c">${fmt(l916('static').refound)}%</span>`;
+const E3 = R.e3;
+$('#m3a').innerHTML = `<span class="static-c">${E3.motion_static_max}%</span> <span style="font-size:.45em;color:var(--muted)">vs</span> <span class="moving-c">${E3.motion_moving[0]}–${E3.motion_moving[1]}%</span>`;
+$('#m3b').innerHTML = `${E3.err_low} → <span class="moving-c">${E3.err_high}</span>`;
+$('#m3bs').textContent = `Spearman ρ = ${E3.rho_flow_err} over ${E3.n_matches.toLocaleString('en-US')} matches`;
+$('#m3c').innerHTML = `${E3.high.per_1k} <span style="font-size:.45em;color:var(--muted)">vs</span> ${E3.low.per_1k}`;
+const env = R.env;
+$('#envLine').textContent = `Reference run: Python ${env.python}, PyTorch ${env.torch}, ${env.gpu}; ByteTrack ${env.bytetrack_commit.slice(0, 7)}, TrackEval ${env.trackeval_commit.slice(0, 7)}.`;
+
+/* ---------- pipeline diagram ---------- */
+function renderPipe() {
+  const s = $('#pipeSvg'); s.innerHTML = '';
+  const defs = el('defs', {}, s);
+  const m = el('marker', { id: 'ah', viewBox: '0 0 10 10', refX: 9, refY: 5, markerWidth: 7, markerHeight: 7, orient: 'auto-start-reverse' }, defs);
+  el('path', { d: 'M0,0L10,5L0,10z', fill: css('--muted') }, m);
+  const nodes = [
+    { x: 10, t: 'Video frames', s: 'MOT17 half-val' },
+    { x: 220, t: 'YOLOX-X detector', s: 'boxes + scores, cached' },
+    { x: 430, t: 'Kalman prediction', s: 'constant velocity, image coords', hot: true },
+    { x: 640, t: 'BYTE matching', s: 'IoU: high, then low scores' },
+    { x: 850, t: 'Tracks with IDs', s: 'HOTA · MOTA · IDF1' },
+  ];
+  nodes.forEach((n, i) => {
+    const g = el('g', { class: 'node' + (n.hot ? ' hot' : '') }, s);
+    el('rect', { x: n.x, y: 40, width: 200, height: 76, rx: 14 }, g);
+    txt(g, n.x + 100, 72, n.t, { 'text-anchor': 'middle', 'font-size': 16, 'font-weight': 600 });
+    txt(g, n.x + 100, 94, n.s, { 'text-anchor': 'middle', class: 'sub' });
+    if (i < nodes.length - 1) el('path', { d: `M${n.x + 202},78H${nodes[i + 1].x - 4}`, class: 'arrow' }, s);
+  });
+  // camera motion input
+  const cg = el('g', { class: 'node hot' }, s);
+  el('rect', { x: 330, y: 170, width: 200, height: 64, rx: 14 }, cg);
+  txt(cg, 430, 197, 'Camera motion', { 'text-anchor': 'middle', 'font-size': 15, 'font-weight': 600, fill: css('--moving') });
+  txt(cg, 430, 218, 'shifts every box', { 'text-anchor': 'middle', class: 'sub' });
+  el('path', { d: 'M430,168V120', class: 'arrow', style: `stroke:${css('--moving')}` }, s);
+  const mg = el('g', { class: 'node' }, s);
+  el('rect', { x: 560, y: 170, width: 260, height: 64, rx: 14, 'stroke-dasharray': '5 4' }, mg);
+  txt(mg, 690, 197, 'This study measures', { 'text-anchor': 'middle', 'font-size': 15, 'font-weight': 600 });
+  txt(mg, 690, 218, 'ORB + RANSAC motion · prediction log', { 'text-anchor': 'middle', class: 'sub' });
+  el('path', { d: 'M560,190H534', class: 'arrow' }, s);
+  el('path', { d: 'M700,168V120', class: 'arrow', 'stroke-dasharray': '4 4' }, s);
+}
+
+/* ---------- explainer ---------- */
+function iou(a, b) {
+  const ix = Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x));
+  const iy = Math.max(0, Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y));
+  const I = ix * iy; return I / (a.w * a.h + b.w * b.h - I);
+}
+function renderExpl() {
+  const pan = +$('#sPan').value, k = +$('#sGap').value;
+  $('#vPan').textContent = pan + ' px'; $('#vGap').textContent = k;
+  const s = $('#explSvg'); s.innerHTML = '';
+  const W = 360, H = 260, bw = 46, bh = 120;
+  const det = { x: 150, y: 70, w: bw, h: bh };
+  const pred = { x: 150 - pan * k, y: 70, w: bw, h: bh };   // the camera moved the person by pan*k pixels
+  const v = iou(det, pred);
+  el('rect', { x: 0.5, y: 0.5, width: W - 1, height: H - 1, rx: 12, fill: 'none', stroke: css('--line') }, s);
+  // ground line with motion arrow
+  el('line', { x1: 20, y1: 214, x2: W - 20, y2: 214, stroke: css('--grid'), 'stroke-width': 2 }, s);
+  // person silhouette at detection
+  const pc = css('--ink2');
+  el('circle', { cx: det.x + bw / 2, cy: det.y + 16, r: 12, fill: pc, opacity: .25 }, s);
+  el('rect', { x: det.x + 9, y: det.y + 32, width: bw - 18, height: bh - 40, rx: 10, fill: pc, opacity: .25 }, s);
+  el('rect', { x: det.x, y: det.y, width: bw, height: bh, rx: 4, fill: 'none', stroke: css('--static'), 'stroke-width': 3 }, s);
+  el('rect', { x: pred.x, y: pred.y, width: bw, height: bh, rx: 4, fill: 'none', stroke: css('--moving'), 'stroke-width': 3, 'stroke-dasharray': '7 5' }, s);
+  txt(s, det.x + bw / 2, det.y - 10, 'detection', { 'text-anchor': 'middle', fill: css('--static'), 'font-size': 13, 'font-weight': 500 });
+  txt(s, pred.x + bw / 2, pred.y + bh + 22, 'prediction', { 'text-anchor': 'middle', fill: css('--moving'), 'font-size': 13, 'font-weight': 500 });
+  txt(s, 20, 244, `offset = ${pan} × ${k} = ${(pan * k).toFixed(1)} px`, { 'font-size': 13, fill: css('--muted') });
+  $('#vIou').textContent = v.toFixed(2);
+  const ok = v > 0.1;
+  const b = $('#vBadge'); b.className = 'badge ' + (ok ? 'ok' : 'no'); b.textContent = ok ? 'matched' : 'lost: new ID';
+}
+['#sPan', '#sGap'].forEach(id => $(id).addEventListener('input', renderExpl));
+
+/* ---------- E1 ---------- */
+let e1Key = 'MOTA';
+const e1Opts = [['MOTA', 'MOTA*'], ['IDF1', 'IDF1*'], ['IDs', 'ID switches*'], ['HOTA', 'HOTA']];
+const e1Names = { e1_default: 'Official settings', e1_interp20: '+ interpolation (20)', e1_match08: 'Match threshold 0.8', e1_match08_interp20: 'Match 0.8 + interpolation', e1_fp32: 'Detector FP32', e1_sort: 'SORT, same detections' };
+const paperRef = { MOTA: { e1_default: 76.6, e1_interp20: 78.3, e1_sort: 74.6 }, IDF1: { e1_default: 79.3, e1_interp20: 80.2, e1_sort: 76.9 }, IDs: { e1_default: 159 }, HOTA: { e1_default: 67.88 } };
+function renderE1() {
+  const c = $('#e1Chart'); const W = widthOf(c);
+  const rows = R.e1.filter(r => r.run !== 'paper');
+  const order = ['e1_default', 'e1_interp20', 'e1_match08', 'e1_match08_interp20', 'e1_fp32', 'e1_sort'];
+  rows.sort((a, b) => order.indexOf(a.run) - order.indexOf(b.run));
+  const labW = W < 520 ? W * 0.47 : Math.min(210, W * 0.38), rowH = 38, top = 10, H = top + rows.length * rowH + 24;
+  const s = svgIn(c, W, H, `E1 ${e1Key} per setting`);
+  const vals = rows.map(r => r[e1Key]);
+  let lo = e1Key === 'IDs' ? 0 : Math.floor(Math.min(...vals) - 6), hi = e1Key === 'IDs' ? 300 : Math.ceil(Math.max(...vals) + 2);
+  if (e1Key !== 'IDs') { lo = 60; hi = 85; }
+  const x = v => labW + (v - lo) / (hi - lo) * (W - labW - 50);
+  const g = el('g', { class: 'grid' }, s);
+  const ticks = e1Key === 'IDs' ? [0, 100, 200, 300] : [60, 65, 70, 75, 80, 85];
+  ticks.forEach(t => { el('line', { x1: x(t), x2: x(t), y1: top - 4, y2: H - 22 }, g); txt(s, x(t), H - 6, t, { 'text-anchor': 'middle' }); });
+  rows.forEach((r, i) => {
+    const y = top + i * rowH;
+    txt(s, labW - 12, y + rowH / 2 + 4, e1Names[r.run] || r.run, { 'text-anchor': 'end', class: 'lab' });
+    const fill = r.run === 'e1_default' ? css('--accent') : css('--muted');
+    const bar = hbar(s, x(lo), y + 8, x(r[e1Key]) - x(lo), rowH - 16, fill);
+    txt(s, x(r[e1Key]) + 6, y + rowH / 2 + 4, e1Key === 'IDs' ? fmt(r[e1Key], 0) : fmt(r[e1Key]), { class: 'val' });
+    const pr = (paperRef[e1Key] || {})[r.run];
+    if (pr != null) el('line', { x1: x(pr), x2: x(pr), y1: y + 3, y2: y + rowH - 3, stroke: css('--ink'), 'stroke-width': 2, 'stroke-dasharray': '3 3' }, s);
+    const hit = el('rect', { x: 0, y, width: W, height: rowH, fill: 'transparent' }, s);
+    hover(hit, () => `<b>${e1Names[r.run]}</b><br><span class="k">${e1Opts.find(o => o[0] === e1Key)[1]}</span> ${e1Key === 'IDs' ? r[e1Key] : fmt(r[e1Key])}${pr != null ? `<br><span class="k">published</span> ${pr}` : ''}<br><span class="k">HOTA static / moving</span> ${fmt(r.HOTA_static)} / ${fmt(r.HOTA_moving)}`);
+  });
+  if (e1Key !== 'IDs') txt(s, x(lo) + 2, H - 6, '', {});
+}
+seg($('#e1Metric'), e1Opts, e1Key, k => { e1Key = k; renderE1(); });
+
+/* ---------- E2 groups ---------- */
+function renderE2Groups() {
+  const c = $('#e2Groups'); const W = widthOf(c), H = 260, top = 20, bottom = 40, left = 30;
+  const s = svgIn(c, W, H, 'HOTA, DetA and AssA for static and moving cameras');
+  const ms = ['HOTA', 'DetA', 'AssA'];
+  const y = v => H - bottom - v / 85 * (H - top - bottom);
+  const g = el('g', { class: 'grid' }, s);
+  [0, 20, 40, 60, 80].forEach(t => { el('line', { x1: left, x2: W, y1: y(t), y2: y(t) }, g); txt(s, left - 6, y(t) + 4, t, { 'text-anchor': 'end' }); });
+  const gw = (W - left) / 3, bw = Math.min(46, gw / 3.2);
+  ms.forEach((m, i) => {
+    const cx = left + gw * i + gw / 2;
+    ['static', 'moving'].forEach((grp, j) => {
+      const v = G[grp][m]; const bx = cx - bw - 1 + j * (bw + 2);
+      vbar(s, bx, y(0), bw, y(0) - y(v), css('--' + grp));
+      txt(s, bx + bw / 2, y(v) - 6, fmt(v), { 'text-anchor': 'middle', class: 'val' });
+      const hit = el('rect', { x: bx - 2, y: top, width: bw + 4, height: H - top - bottom, fill: 'transparent' }, s);
+      hover(hit, () => `<div class="row">${dot(css('--' + grp))}<b>${grp}</b></div><span class="k">${m}</span> ${fmt(v)}<br><span class="k">gap</span> ${fmt(G.static[m] - G.moving[m])}`);
+    });
+    txt(s, cx, H - bottom + 20, m, { 'text-anchor': 'middle', class: 'lab' });
+    txt(s, cx, H - 4, `gap ${fmt(G.static[m] - G.moving[m])}`, { 'text-anchor': 'middle', fill: css('--moving'), 'font-size': 12, 'font-weight': 500 });
+  });
+}
+function renderE2Share() {
+  const c = $('#e2Share'); const W = widthOf(c), rowH = 54, labW = W < 520 ? W * 0.38 : Math.min(140, W * .3), H = rowH * 4 + 30;
+  const s = svgIn(c, W, H, 'Share of ground-truth boxes and of ID switches by camera type');
+  const rows = [['Ground-truth boxes', 'share_GT'], ['ID switches', 'share_IDSW'], ['Missed boxes (FN)', 'share_FN'], ['False positives', 'share_FP']];
+  const x = v => labW + v / 100 * (W - labW - 4);
+  rows.forEach(([lab, k], i) => {
+    const y = 10 + i * rowH;
+    txt(s, labW - 12, y + rowH / 2 + 2, lab, { 'text-anchor': 'end', class: 'lab' });
+    const st = G.static[k], mv = G.moving[k];
+    el('rect', { x: x(0), y: y + 12, width: x(st) - x(0) - 1, height: rowH - 24, fill: css('--static'), rx: 0 }, s);
+    hbar(s, x(st) + 1, y + 12, x(100) - x(st) - 1, rowH - 24, css('--moving'));
+    txt(s, x(st) - 8, y + rowH / 2 + 4, Math.round(st) + '%', { 'text-anchor': 'end', fill: '#fff', 'font-weight': 500 });
+    txt(s, x(100) - 8, y + rowH / 2 + 4, Math.round(mv) + '%', { 'text-anchor': 'end', fill: '#fff', 'font-weight': 500 });
+    const hit = el('rect', { x: labW, y, width: W - labW, height: rowH, fill: 'transparent' }, s);
+    hover(hit, () => `<b>${lab}</b><div class="row">${dot(css('--static'))}static ${fmt(st)}%</div><div class="row">${dot(css('--moving'))}moving ${fmt(mv)}%</div>`);
+  });
+  el('line', { x1: x(50), x2: x(50), y1: 4, y2: H - 20, stroke: css('--ink'), 'stroke-dasharray': '2 3', opacity: .5 }, s);
+  txt(s, x(50), H - 4, '50%', { 'text-anchor': 'middle' });
+  $('#e2ShareNote').textContent = `Moving cameras: ${G.moving.IDSW_per_1k.toFixed(1)} ID switches per 1,000 boxes vs ${G.static.IDSW_per_1k.toFixed(1)} on static cameras.`;
+}
+
+/* ---------- E2 per sequence ---------- */
+let seqKey = 'HOTA';
+const seqOpts = [['HOTA', 'HOTA'], ['AssA', 'AssA'], ['DetA', 'DetA'], ['IDSW_per_1k', 'ID sw. / 1k'], ['motion', 'Camera motion'], ['density', 'People / frame']];
+const seqUnit = { motion: '% diag', density: '' };
+function renderSeq() {
+  const c = $('#e2Seq'); const W = widthOf(c), H = 280, top = 24, bottom = 54, left = 40;
+  const s = svgIn(c, W, H, `Per-sequence ${seqKey}`);
+  const seqs = R.sequences;
+  const vals = seqs.map(q => q[seqKey]); const max = Math.max(...vals);
+  const hi = ['HOTA', 'AssA', 'DetA'].includes(seqKey) ? 100 : max * 1.18;
+  const y = v => H - bottom - v / hi * (H - top - bottom);
+  const g = el('g', { class: 'grid' }, s);
+  for (let i = 0; i <= 4; i++) { const t = hi * i / 4; el('line', { x1: left, x2: W, y1: y(t), y2: y(t) }, g); txt(s, left - 6, y(t) + 4, seqKey === 'motion' ? t.toFixed(2) : Math.round(t), { 'text-anchor': 'end' }); }
+  const gw = (W - left) / seqs.length, bw = Math.min(54, gw * .6);
+  seqs.forEach((q, i) => {
+    const cx = left + gw * i + gw / 2, v = q[seqKey];
+    vbar(s, cx - bw / 2, y(0), bw, y(0) - y(v), css('--' + q.group));
+    txt(s, cx, y(v) - 6, seqKey === 'motion' ? v.toFixed(2) : fmt(v), { 'text-anchor': 'middle', class: 'val' });
+    txt(s, cx, H - bottom + 18, q.seq.replace('MOT17-', ''), { 'text-anchor': 'middle', class: 'lab' });
+    txt(s, cx, H - bottom + 34, q.group, { 'text-anchor': 'middle', 'font-size': 11 });
+    const hit = el('rect', { x: cx - gw / 2, y: top, width: gw, height: H - top - bottom + 40, fill: 'transparent' }, s);
+    hover(hit, () => `<div class="row">${dot(css('--' + q.group))}<b>${q.seq}</b> · ${q.group}</div><span class="k">HOTA / DetA / AssA</span> ${fmt(q.HOTA)} / ${fmt(q.DetA)} / ${fmt(q.AssA)}<br><span class="k">ID switches</span> ${q.IDSW} (${fmt(q.IDSW_per_1k)} / 1k)<br><span class="k">camera motion</span> ${q.motion}% diag<br><span class="k">${q.fps} fps · ${q.resolution} · ${q.conditions}</span>`);
+  });
+  const sep = left + gw * 3;
+  el('line', { x1: sep, x2: sep, y1: top, y2: H - bottom + 36, stroke: css('--line'), 'stroke-dasharray': '4 4' }, s);
+  txt(s, W - 4, 14, seqUnit[seqKey] || '', { 'text-anchor': 'end' });
+}
+seg($('#seqMetric'), seqOpts, seqKey, k => { seqKey = k; renderSeq(); });
+function renderSeqTable() {
+  const cols = [['seq', 'Sequence'], ['group', 'Camera'], ['fps', 'FPS'], ['density', 'People/frame'], ['height', 'Height %'], ['conditions', 'Scene'], ['HOTA', 'HOTA'], ['DetA', 'DetA'], ['AssA', 'AssA'], ['IDSW_per_1k', 'IDSW/1k'], ['motion', 'Motion % diag'], ['pred_iou', 'Pred. IoU'], ['rho', 'ρ(motion, IoU)']];
+  let h = '<table><thead><tr>' + cols.map(c => `<th>${c[1]}</th>`).join('') + '</tr></thead><tbody>';
+  R.sequences.forEach(q => { h += '<tr>' + cols.map(([k]) => `<td>${typeof q[k] === 'number' ? (k === 'motion' ? q[k].toFixed(3) : (k === 'pred_iou' || k === 'rho') ? q[k].toFixed(2) : k === 'fps' ? q[k] : q[k].toFixed(1)) : q[k]}</td>`).join('') + '</tr>'; });
+  $('#seqTable').innerHTML = h + '</tbody></table>';
+}
+
+/* ---------- E2 gap by setting ---------- */
+function renderGap() {
+  const c = $('#e2Gap'); const W = widthOf(c);
+  const rows = R.gap_by_setting; const rowH = 46, labW = W < 520 ? W * 0.47 : Math.min(210, W * .38), H = rows.length * rowH + 30;
+  const s = svgIn(c, W, H, 'HOTA, DetA and AssA gap for each setting');
+  const hi = 18, x = v => labW + v / hi * (W - labW - 40);
+  const g = el('g', { class: 'grid' }, s);
+  [0, 5, 10, 15].forEach(t => { el('line', { x1: x(t), x2: x(t), y1: 4, y2: H - 22 }, g); txt(s, x(t), H - 6, t, { 'text-anchor': 'middle' }); });
+  const names = { e1_default: 'Official settings', e1_fp32: 'Detector FP32', e1_interp20: '+ interpolation (20)', e1_match08: 'Match threshold 0.8', e1_match08_interp20: 'Match 0.8 + interpolation', e1_sort: 'SORT, same detections' };
+  rows.forEach((r, i) => {
+    const y = 6 + i * rowH; const bh = (rowH - 14) / 3;
+    txt(s, labW - 12, y + rowH / 2, names[r.run] || r.run, { 'text-anchor': 'end', class: 'lab' });
+    [['HOTA', css('--muted')], ['DetA', css('--grid')], ['AssA', css('--ink2')]].forEach(([k, col], j) => {
+      const b = hbar(s, x(0), y + j * (bh + 2), x(r[k]) - x(0), bh, col);
+      if (k === 'DetA') b.setAttribute('stroke', css('--line'));
+    });
+    txt(s, x(r.HOTA) + 6, y + bh - 1, fmt(r.HOTA), { class: 'val', 'font-size': 11 });
+    const hit = el('rect', { x: 0, y, width: W, height: rowH, fill: 'transparent' }, s);
+    hover(hit, () => `<b>${names[r.run]}</b><br><span class="k">HOTA gap</span> ${fmt(r.HOTA)}<br><span class="k">DetA gap</span> ${fmt(r.DetA)}<br><span class="k">AssA gap</span> ${fmt(r.AssA)}`);
+  });
+}
+
+/* ---------- E3 timeline ---------- */
+let tlSeq = 'MOT17-13-FRCNN';
+const seqNames = Object.keys(R.timeline);
+seg($('#tlSeq'), seqNames.map(k => [k, k.replace('MOT17-', '').replace('-FRCNN', '') + (R.timeline[k].group === 'moving' ? ' ·M' : ' ·S')]), tlSeq, k => { tlSeq = k; renderTimeline(); });
+function lineChart(c, xs, ys, opts) {
+  const W = widthOf(c), H = opts.h || 170, top = 12, bottom = 26, left = 46, right = 10;
+  const s = svgIn(c, W, H, opts.label);
+  const lo = opts.lo, hi = opts.hi;
+  const x = v => left + (v - xs[0]) / (xs[xs.length - 1] - xs[0]) * (W - left - right);
+  const y = v => H - bottom - (v - lo) / (hi - lo) * (H - top - bottom);
+  const g = el('g', { class: 'grid' }, s);
+  opts.ticks.forEach(t => { el('line', { x1: left, x2: W - right, y1: y(t), y2: y(t) }, g); txt(s, left - 6, y(t) + 4, t, { 'text-anchor': 'end' }); });
+  txt(s, left, 10, opts.ylab, { 'font-size': 11 });
+  let d = '', pen = false;
+  ys.forEach((v, i) => { if (v == null || isNaN(v)) { pen = false; return; } const cv = Math.max(lo, Math.min(hi, v)); d += (pen ? 'L' : 'M') + x(xs[i]).toFixed(1) + ',' + y(cv).toFixed(1); pen = true; });
+  el('path', { d, fill: 'none', stroke: opts.color, 'stroke-width': 2, 'stroke-linejoin': 'round' }, s);
+  if (opts.marks) opts.marks.forEach((m, i) => { if (m > 0) el('line', { x1: x(xs[i]), x2: x(xs[i]), y1: H - bottom, y2: H - bottom - 10, stroke: css('--ink'), 'stroke-width': 2 }, s); });
+  if (opts.xaxis) [0, .25, .5, .75, 1].forEach(f => { const fv = Math.round(xs[0] + f * (xs[xs.length - 1] - xs[0])); txt(s, x(fv), H - 8, fv, { 'text-anchor': 'middle' }); });
+  const cross = el('line', { y1: top, y2: H - bottom, stroke: css('--muted'), 'stroke-width': 1, opacity: 0 }, s);
+  const pt = el('circle', { r: 4.5, fill: opts.color, stroke: css('--surface'), 'stroke-width': 2, opacity: 0 }, s);
+  const hit = el('rect', { x: left, y: 0, width: W - left - right, height: H, fill: 'transparent' }, s);
+  return { s, x, y, cross, pt, hit, left, W, right };
+}
+function renderTimeline() {
+  const T = R.timeline[tlSeq]; const col = css('--' + T.group);
+  const mMax = T.group === 'moving' ? Math.max(1, Math.ceil(Math.max(...T.m.filter(v => v != null)) * 2) / 2) : 0.05;
+  const mt = T.group === 'moving' ? [0, mMax / 2, mMax] : [0, 0.025, 0.05];
+  const A = lineChart($('#tlMotion'), T.f, T.m, { lo: 0, hi: mMax, ticks: mt, color: col, ylab: 'camera motion (% diag / frame)', label: 'Camera motion per frame', h: 150 });
+  const iLo = Math.min(0.6, Math.floor(Math.min(...T.iou.filter(v => v != null)) * 5) / 5);
+  const B = lineChart($('#tlIou'), T.f, T.iou, { lo: iLo, hi: 1, ticks: [iLo, +((iLo + 1) / 2).toFixed(1), 1], color: col, ylab: 'prediction IoU · ticks: ID switches', label: 'Prediction IoU per frame', marks: T.sw, xaxis: true, h: 170 });
+  const both = [A, B];
+  const move = ev => {
+    const r = A.hit.getBoundingClientRect(); const frac = (ev.clientX - r.left) / r.width;
+    const i = Math.max(0, Math.min(T.f.length - 1, Math.round(frac * (T.f.length - 1))));
+    const fx = A.x(T.f[i]);
+    both.forEach((C, j) => {
+      C.cross.setAttribute('x1', fx); C.cross.setAttribute('x2', fx); C.cross.setAttribute('opacity', 1);
+      const v = j === 0 ? T.m[i] : T.iou[i];
+      if (v != null) { C.pt.setAttribute('cx', fx); C.pt.setAttribute('cy', C.y(Math.max(j ? iLo : 0, Math.min(j ? 1 : mMax, v)))); C.pt.setAttribute('opacity', 1); } else C.pt.setAttribute('opacity', 0);
+    });
+    showTip(`<b>${tlSeq.replace('-FRCNN', '')}</b> · frame ${T.f[i]}<br><span class="k">camera motion</span> ${T.m[i] == null ? 'n/a' : T.m[i].toFixed(3) + '%'}<br><span class="k">prediction IoU</span> ${T.iou[i] == null ? 'n/a' : T.iou[i].toFixed(3)}${T.sw[i] ? `<br><b>${T.sw[i]} ID switch${T.sw[i] > 1 ? 'es' : ''}</b>` : ''}`, ev);
+  };
+  const leave = () => { hideTip(); both.forEach(C => { C.cross.setAttribute('opacity', 0); C.pt.setAttribute('opacity', 0); }); };
+  both.forEach(C => { C.hit.addEventListener('pointermove', move); C.hit.addEventListener('pointerleave', leave); });
+}
+
+/* ---------- E3 lost ---------- */
+let lostKey = 'refound';
+seg($('#lostMetric'), [['refound', 'Re-found (%)'], ['best_iou', 'Best IoU']], lostKey, k => { lostKey = k; renderLost(); });
+function renderLost() {
+  const c = $('#lostChart'); const W = widthOf(c), H = 280, top = 20, bottom = 46, left = 46, right = 70;
+  const s = svgIn(c, W, H, 'Lost-track recovery by gap length');
+  const gaps = ['2', '3-4', '5-8', '9-16', '17-30'];
+  const hi = lostKey === 'refound' ? 16 : 0.4;
+  const x = i => left + i / (gaps.length - 1) * (W - left - right);
+  const y = v => H - bottom - v / hi * (H - top - bottom);
+  const g = el('g', { class: 'grid' }, s);
+  const ticks = lostKey === 'refound' ? [0, 4, 8, 12, 16] : [0, .1, .2, .3, .4];
+  ticks.forEach(t => { el('line', { x1: left, x2: W - right, y1: y(t), y2: y(t) }, g); txt(s, left - 6, y(t) + 4, lostKey === 'refound' ? t + '%' : t.toFixed(1), { 'text-anchor': 'end' }); });
+  gaps.forEach((gp, i) => txt(s, x(i), H - bottom + 20, gp, { 'text-anchor': 'middle', class: 'lab' }));
+  txt(s, (left + W - right) / 2, H - 6, 'frames since the track was lost', { 'text-anchor': 'middle' });
+  el('rect', { x: (x(2) + x(3)) / 2, y: top, width: (x(4) - x(2)) / 2, height: H - top - bottom, fill: css('--grid'), opacity: .55 }, s);
+  txt(s, x(3), top + 14, '9–16 frames', { 'text-anchor': 'middle', 'font-size': 11 });
+  ['static', 'moving'].forEach(grp => {
+    const pts = gaps.map((gp, i) => { const r = R.lost.find(q => q.group === grp && q.gap === gp); return [x(i), y(r[lostKey]), r]; });
+    el('path', { d: pts.map((p, i) => (i ? 'L' : 'M') + p[0] + ',' + p[1]).join(''), fill: 'none', stroke: css('--' + grp), 'stroke-width': 2.5 }, s);
+    pts.forEach(p => {
+      el('circle', { cx: p[0], cy: p[1], r: 5, fill: css('--' + grp), stroke: css('--surface'), 'stroke-width': 2 }, s);
+      const hit = el('circle', { cx: p[0], cy: p[1], r: 16, fill: 'transparent' }, s);
+      hover(hit, () => `<div class="row">${dot(css('--' + grp))}<b>${grp}</b> · lost ${p[2].gap} frames</div><span class="k">re-found</span> ${fmt(p[2].refound)}%<br><span class="k">best IoU</span> ${p[2].best_iou.toFixed(2)}<br><span class="k">n</span> ${p[2].n}`);
+    });
+    const last = pts[pts.length - 1];
+    txt(s, last[0] + 10, last[1] + 4, grp, { fill: css('--ink2'), 'font-size': 13, 'font-weight': 500 });
+  });
+}
+
+/* ---------- E4 ---------- */
+let e4Param = 'kalman_noise_scale';
+const e4Opts = [['kalman_noise_scale', 'Kalman process noise'], ['track_thresh', 'High-score threshold'], ['match_thresh', 'Matching threshold'], ['track_buffer', 'Lost-track buffer']];
+seg($('#e4Param'), e4Opts, e4Param, k => { e4Param = k; renderE4(); });
+function renderE4() {
+  const c = $('#e4Chart'); const W = widthOf(c), H = 300, top = 20, bottom = 46, left = 46, right = 70;
+  const rows = R.e4.filter(r => r.param === e4Param).sort((a, b) => a.value - b.value);
+  const s = svgIn(c, W, H, `HOTA vs ${e4Param}`);
+  const log = e4Param === 'kalman_noise_scale';
+  const xv = v => log ? Math.log2(v) : v;
+  const xs = rows.map(r => xv(r.value)); const x0 = Math.min(...xs), x1 = Math.max(...xs);
+  const x = v => left + (xv(v) - x0) / (x1 - x0) * (W - left - right);
+  const lo = 50, hi = 75, y = v => H - bottom - (v - lo) / (hi - lo) * (H - top - bottom);
+  const g = el('g', { class: 'grid' }, s);
+  [50, 55, 60, 65, 70, 75].forEach(t => { el('line', { x1: left, x2: W - right, y1: y(t), y2: y(t) }, g); txt(s, left - 6, y(t) + 4, t, { 'text-anchor': 'end' }); });
+  txt(s, left, 12, 'HOTA', { 'font-size': 11 });
+  const off = rows.find(r => r.official);
+  el('line', { x1: x(off.value), x2: x(off.value), y1: top, y2: H - bottom, stroke: css('--muted'), 'stroke-dasharray': '5 4' }, s);
+  rows.forEach(r => txt(s, x(r.value), H - bottom + 20, log ? '×' + (r.value < 1 ? (r.value === .25 ? '¼' : '½') : r.value) : r.value, { 'text-anchor': 'middle', class: 'lab' }));
+  txt(s, (left + W - right) / 2, H - 6, e4Opts.find(o => o[0] === e4Param)[1] + (log ? ' (scale)' : ''), { 'text-anchor': 'middle' });
+  // gap band
+  const band = rows.map(r => `${x(r.value)},${y(r.static)}`).join(' ') + ' ' + rows.slice().reverse().map(r => `${x(r.value)},${y(r.moving)}`).join(' ');
+  el('polygon', { points: band, fill: css('--moving'), opacity: .08 }, s);
+  ['static', 'moving'].forEach(grp => {
+    el('path', { d: rows.map((r, i) => (i ? 'L' : 'M') + x(r.value) + ',' + y(r[grp])).join(''), fill: 'none', stroke: css('--' + grp), 'stroke-width': 2.5 }, s);
+    rows.forEach(r => el('circle', { cx: x(r.value), cy: y(r[grp]), r: 5, fill: css('--' + grp), stroke: css('--surface'), 'stroke-width': 2 }, s));
+    const last = rows[rows.length - 1];
+    txt(s, x(last.value) + 10, y(last[grp]) + 4, grp, { fill: css('--ink2'), 'font-size': 13, 'font-weight': 500 });
+  });
+  rows.forEach((r, i) => {
+    const xm = x(r.value), prev = i ? x(rows[i - 1].value) : xm - 30, next = i < rows.length - 1 ? x(rows[i + 1].value) : xm + 30;
+    const hit = el('rect', { x: (prev + xm) / 2, y: top, width: (next - prev) / 2, height: H - top - bottom, fill: 'transparent' }, s);
+    hover(hit, () => `<b>${e4Opts.find(o => o[0] === e4Param)[1]} = ${r.value}${r.official ? ' (official)' : ''}</b><div class="row">${dot(css('--static'))}static ${fmt(r.static)}</div><div class="row">${dot(css('--moving'))}moving ${fmt(r.moving)}</div><span class="k">gap</span> ${fmt(r.gap)} · <span class="k">overall</span> ${fmt(r.HOTA)}`);
+  });
+  const gaps = rows.map(r => r.gap), mv = rows.map(r => r.moving);
+  $('#e4Note').textContent = `Gap ${fmt(Math.min(...gaps))}–${fmt(Math.max(...gaps))} HOTA; moving-camera HOTA ${fmt(Math.min(...mv))}–${fmt(Math.max(...mv))}. Across all 15 settings the gap is ${fmt(Math.min(...R.e4.map(r => r.gap)))}–${fmt(Math.max(...R.e4.map(r => r.gap)))}.`;
+}
+
+/* ---------- hero background: drifting boxes ---------- */
+function hero() {
+  const cv = $('#heroCanvas'); if (!cv || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const ctx = cv.getContext('2d'); let w, h, boxes = [];
+  const resize = () => { w = cv.width = cv.offsetWidth * devicePixelRatio; h = cv.height = cv.offsetHeight * devicePixelRatio; };
+  resize(); addEventListener('resize', resize);
+  for (let i = 0; i < 14; i++) boxes.push({ x: Math.random(), y: .25 + Math.random() * .6, s: .6 + Math.random() * .8, v: (Math.random() - .5) * .0004 });
+  let t = 0;
+  (function loop() {
+    t += 1; ctx.clearRect(0, 0, w, h);
+    const pan = Math.sin(t / 240) * .0016;
+    boxes.forEach(b => {
+      b.x += b.v + pan; if (b.x < -.1) b.x = 1.05; if (b.x > 1.1) b.x = -.05;
+      const bw = 34 * b.s * devicePixelRatio, bh = 86 * b.s * devicePixelRatio, X = b.x * w, Y = b.y * h - bh / 2;
+      ctx.lineWidth = 2 * devicePixelRatio;
+      ctx.setLineDash([]); ctx.strokeStyle = 'rgba(138,180,248,.9)'; ctx.strokeRect(X, Y, bw, bh);
+      ctx.setLineDash([6 * devicePixelRatio, 5 * devicePixelRatio]); ctx.strokeStyle = 'rgba(253,174,107,.9)';
+      ctx.strokeRect(X - pan * w * 14, Y, bw, bh);
+    });
+    requestAnimationFrame(loop);
+  })();
+}
+
+/* ---------- copy buttons ---------- */
+document.querySelectorAll('.copy').forEach(b => b.addEventListener('click', () => {
+  const pre = b.parentElement.cloneNode(true); pre.querySelector('.copy').remove();
+  navigator.clipboard?.writeText(pre.textContent.trim()).then(() => { b.textContent = 'Copied'; setTimeout(() => b.textContent = 'Copy', 1400); });
+}));
+
+/* ---------- nav highlight ---------- */
+const links = [...document.querySelectorAll('nav.top .links a')];
+const io = new IntersectionObserver(es => es.forEach(e => {
+  if (e.isIntersecting) links.forEach(a => a.classList.toggle('on', a.getAttribute('href') === '#' + e.target.id));
+}), { rootMargin: '-45% 0px -50% 0px' });
+['overview', 'idea', 'e1', 'e2', 'e3', 'e4', 'demo', 'reproduce', 'cite'].forEach(id => io.observe(document.getElementById(id)));
+
+function renderAll() {
+  renderPipe(); renderExpl(); renderE1(); renderE2Groups(); renderE2Share(); renderSeq(); renderGap(); renderTimeline(); renderLost(); renderE4();
+}
+renderSeqTable(); renderAll(); hero();
+let rt; addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(renderAll, 150); });
+})();
+</script>
+</body>
+</html>
