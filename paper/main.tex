@@ -10,7 +10,7 @@
 
 % All numbers below come from results/ via scripts/make_paper_assets.py
 \input{numbers}
-\newcommand{\todo}[1]{\textcolor{red}{[TODO: #1]}}
+\newcommand{\repocommit}{0000000}% set at release
 
 \begin{document}
 
@@ -246,13 +246,25 @@ frame-to-frame matching. The gap remains under all tracker settings we tested, a
 
 \appendices
 \section{Reproducibility}
-Code: \url{https://github.com/vanowarna/bytetrack-moving-camera} (release \texttt{v1.0}). Environment: Python 3.11,
-PyTorch 2.7.1 (CUDA 12.8), locked with \texttt{uv}; ByteTrack \texttt{d1bf019}, TrackEval \texttt{12c8791}.
-Hardware: NVIDIA RTX 5050 Laptop GPU (8\,GB). Detection: \vDetMsFP{}\,ms per frame (FP16). Commands:
-\texttt{scripts/make\_splits.py}; \texttt{scripts/run\_many.py --configs "configs/e1\_*.yaml" --table e1} (Table~\ref{tab:e1});
-\texttt{scripts/analyze\_e2.py} (Table~\ref{tab:seq}, E2); \texttt{scripts/run\_camera\_motion.py},
-\texttt{scripts/run\_e3\_log.py}, \texttt{scripts/analyze\_e3.py} (E3); \texttt{scripts/make\_e4\_configs.py}, \texttt{scripts/run\_many.py}, \texttt{scripts/analyze\_e4.py} (E4); \texttt{scripts/make\_paper\_assets.py}
-(all numbers, tables and figures of this paper). Seeds are fixed; all runs are deterministic given the cached detections.
+{\footnotesize\raggedright
+\textbf{Code:} \url{https://github.com/vanowarna/bytetrack-moving-camera}, release \texttt{v1.0} (commit \texttt{\repocommit}).
+\textbf{Environment:} Python 3.11, PyTorch 2.7.1 (CUDA 12.8), locked with \texttt{uv}; ByteTrack \texttt{d1bf019};
+TrackEval \texttt{12c8791}; NVIDIA RTX 5050 Laptop GPU (8\,GB).
+\textbf{Run times:} detection \vDetMsFP{}\,ms per frame in FP16 (a few minutes for the 2{,}652 frames, run once and
+cached); the live demonstration on MOT17-13 (detection, tracking, evaluation and video) takes about one minute.
+\textbf{Seeds:} fixed; all tracking runs are deterministic given the cached detections.
+\textbf{Commands} (all in \texttt{scripts/}; \texttt{make\_paper\_assets.py} then writes every number, table and figure):\par
+\smallskip
+\setlength{\tabcolsep}{3pt}\begin{tabular}{@{}ll@{}}
+Data split & \texttt{make\_splits.py} \\
+Table~\ref{tab:e1} (E1) & \texttt{run\_many.py -{}-configs "configs/e1\_*.yaml"} \\
+ & \texttt{\phantom{run\_many.py} -{}-table e1} \\
+Table~\ref{tab:seq} (E2) & \texttt{analyze\_e2.py} \\
+E3, Figs.~\ref{fig:binned}--\ref{fig:case} & \texttt{run\_camera\_motion.py}, \texttt{run\_e3\_log.py}, \\
+ & \texttt{analyze\_e3.py} \\
+E4, Fig.~\ref{fig:e4} & \texttt{make\_e4\_configs.py}, \texttt{run\_many.py}, \\
+ & \texttt{analyze\_e4.py} \\
+\end{tabular}\par}
 
 \IfFileExists{appendix_ai.tex}{\input{appendix_ai}}{}
 

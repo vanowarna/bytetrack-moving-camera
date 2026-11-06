@@ -2,6 +2,7 @@
 /*.md
 !/README.md
 /.*
+!/.github/
 !/.gitignore
 !/.python-version
 docs/
@@ -43,3 +44,7 @@ paper/*.out
 paper/*.synctex.gz
 paper/*.bbl
 paper/*.blg
+
+# ---- project page (public) ----
+!/site/data/
+!/site/assets/*.mp4
