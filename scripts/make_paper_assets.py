@@ -64,6 +64,7 @@ def main():
 
     d = e1["e1_default"]
     mm, te = d["motmetrics_bytetrack_protocol"]["combined"], d["trackeval"]
+    N["DemoHOTA"] = f1(d["trackeval_per_seq"]["MOT17-13-FRCNN"]["HOTA"])  # the live demo's sequence
     N.update(EoneMOTA=f1(mm["mota"]), EoneIDF=f1(mm["idf1"]), EoneIDs=int(mm["num_switches"]),
              EoneHOTA=f1(te["all"]["HOTA"]), EoneDetA=f1(te["all"]["DetA"]), EoneAssA=f1(te["all"]["AssA"]))
     i = e1["e1_interp20"]["motmetrics_bytetrack_protocol"]["combined"]
@@ -187,7 +188,18 @@ def main():
         lines.append(f"\\newcommand{{\\v{k}}}{{{v}}}")
     (PAPER / "numbers.tex").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
-    print(f"{len(N)} numbers -> paper/numbers.tex; tables -> paper/tables/; figures -> paper/figures/")
+    # the (private) slides reuse the same numbers and figures
+    slides = ROOT / "slides"
+    if slides.exists():
+        dst = slides / "assets"
+        dst.mkdir(exist_ok=True)
+        shutil.copyfile(PAPER / "numbers.tex", dst / "numbers.tex")
+        for f in FIG.iterdir():
+            shutil.copyfile(f, dst / f.name)
+        for f in TAB.iterdir():
+            shutil.copyfile(f, dst / f.name)
+
+    print(f"{len(N)} numbers -> paper/numbers.tex; tables -> paper/tables/; figures -> paper/figures/ (+ slides/assets)")
     if missing:
         print("missing figures:", missing)
 

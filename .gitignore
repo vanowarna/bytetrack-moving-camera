@@ -12,6 +12,7 @@ slides/
 
 # ---- large / third-party / generated ----
 cache/
+demo_out/
 results/_*/
 data/
 external/

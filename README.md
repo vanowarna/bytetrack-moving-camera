@@ -79,6 +79,12 @@ uv run python scripts/run_many.py --configs "configs/e4/*.yaml" --table e4
 uv run python scripts/analyze_e4.py
 ```
 
+### Demo (one sequence, about one minute)
+```bash
+uv run python scripts/demo.py              # MOT17-13: detect (GPU) -> track -> evaluate -> side-by-side video in demo_out/
+uv run python scripts/demo.py --cached     # same, with cached detections (no GPU)
+```
+
 ### Paper assets
 ```bash
 uv run python scripts/make_paper_assets.py   # paper/numbers.tex, paper/tables/, paper/figures/ from results/
