@@ -5,12 +5,13 @@
 \usepackage{amsmath}
 \usepackage{cite}
 \usepackage{xcolor}
+\usepackage{placeins}
 \usepackage[hidelinks]{hyperref}
 \graphicspath{{figures/}}
 
 % All numbers below come from results/ via scripts/make_paper_assets.py
 \input{numbers}
-\newcommand{\repocommit}{b73239e}
+\newcommand{\repocommit}{c58d6bf}
 
 \begin{document}
 
@@ -26,14 +27,13 @@ Student ID 6872086821 \quad 2102515 Digital Video Processing, Semester 1/2026}}
 ByteTrack predicts every track with a constant-velocity Kalman filter in image coordinates, so a moving camera
 appears to the filter as motion of every person. We reproduce ByteTrack on the MOT17 half-validation split with the
 official code and weights and obtain \vEoneMOTA{} MOTA and \vEoneIDF{} IDF1, equal to the published values. We then
-split the error by camera type. The four moving-camera sequences hold \vMovingShareGT\% of the ground-truth boxes but
-\vMovingShareIDSW\% of the identity switches, and their HOTA is \vGapHOTA{} points lower than on static cameras, a gap
-that stays between \vGapMin{} and \vGapMax{} points under six tracker and detector settings. The loss is larger in
-association (AssA $-$\vGapAssA) than in detection (DetA $-$\vGapDetA). A per-frame estimate of global motion (ORB
-features and a RANSAC fit) shows that camera motion degrades the one-frame Kalman prediction, but the predicted box
-still overlaps its detection well enough to be matched. The penalty appears when a lost track must be re-found: after
-9--16 lost frames, \vLostMoving\% of lost tracks are recovered with a moving camera against \vLostStatic\% with a static
-one.
+split the error by camera type. Pooled over boxes, HOTA on the four moving-camera sequences is \vGapHOTA{} points
+lower than on the three static ones, mostly in association, but a leave-one-sequence-out check shows that this gap
+depends on MOT17-04, which holds \vFourShareStaticGT\% of the static boxes; averaged per sequence it is only
+\vSeqMeanGap{} points. A per-frame estimate of camera motion (ORB features, RANSAC) shows that camera motion degrades the one-frame
+Kalman prediction, but not enough to break matching. The robust difference is in re-finding lost tracks: after 9--16
+lost frames, \vLostMoving\% are recovered with a moving camera against \vLostStatic\% with a static one, and static
+cameras stay ahead with any sequence left out.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -56,11 +56,11 @@ This Level~A study reproduces ByteTrack and analyses its error by camera type. O
 \begin{itemize}
 \item a reproduction of ByteTrack on MOT17 half-val that matches the published MOTA and IDF1, together with an
 explanation of the setting behind the published numbers (Sec.~\ref{sec:e1});
-\item a split of the error into static- and moving-camera sequences, which shows a stable gap of about
-\vGapHOTA{} HOTA points, mainly in association (Sec.~\ref{sec:e2});
+\item a split of the error into static- and moving-camera sequences with a leave-one-sequence-out check, which shows
+that the pooled HOTA gap of \vGapHOTA{} points depends on one sequence (Sec.~\ref{sec:e2});
 \item a per-frame mechanism study that relates measured camera motion to the Kalman prediction and locates the loss in
-the recovery of lost tracks (Sec.~\ref{sec:e3}), and a sensitivity study showing that the gap persists across
-tracker settings (Sec.~\ref{sec:e4}).
+the recovery of lost tracks, a result that holds for every left-out sequence (Sec.~\ref{sec:e3}), and a
+sensitivity study of the pooled gap across tracker settings (Sec.~\ref{sec:e4}).
 \end{itemize}
 
 % =====================================================================================================
@@ -68,11 +68,9 @@ tracker settings (Sec.~\ref{sec:e4}).
 \textbf{Motion-based association.} SORT~\cite{bewley2016sort} introduced the Kalman filter plus IoU and Hungarian
 matching that ByteTrack still uses; its motion model is explicitly independent of camera motion. DeepSORT~\cite{wojke2017deepsort}
 added appearance features and the 8-D box state that ByteTrack inherits. ByteTrack~\cite{zhang2022bytetrack} keeps
-the motion model and changes which detections are associated; it reports that the Kalman filter fails on BDD100K
-because of large camera motion, but gives no per-camera breakdown on MOT17.
+this motion model and notes that it fails under large camera motion on BDD100K, but gives no per-camera breakdown on MOT17.
 \textbf{Camera motion compensation.} BoT-SORT~\cite{aharon2022botsort} adds global motion compensation to ByteTrack and
-improves IDF1 by 1.6 points on MOT17 half-val, but it reports only overall numbers and does not show where the gain
-comes from. OC-SORT~\cite{cao2023ocsort} shows that Kalman errors accumulate while a track has no observation, but it
+improves IDF1 by 1.6 points on MOT17 half-val, but reports only overall numbers. OC-SORT~\cite{cao2023ocsort} shows that Kalman errors accumulate while a track has no observation, but it
 studies occlusion and non-linear motion, not the camera.
 \textbf{Metrics.} MOTA~\cite{bernardin2008clear} is dominated by detection errors and IDF1~\cite{ristani2016idf1} by
 identity errors; HOTA~\cite{luiten2021hota} separates detection (DetA) from association (AssA), which we use to locate
@@ -134,18 +132,34 @@ Table~\ref{tab:seq} splits the official run by sequence. Static cameras reach \v
 \vMovingHOTA. The drop is larger in association (AssA \vStaticAssA{} vs.\ \vMovingAssA) than in detection
 (DetA \vStaticDetA{} vs.\ \vMovingDetA). Moving-camera sequences contain \vMovingShareGT\% of the ground-truth boxes but
 \vMovingShareIDSW\% of the identity switches, i.e.\ \vMovingIDSWk{} instead of \vStaticIDSWk{} switches per 1{,}000
-boxes. The gap is stable: under all six settings of Table~\ref{tab:e1} it lies between \vGapMin{} and \vGapMax{} HOTA
+boxes. Under all six settings of Table~\ref{tab:e1} the pooled gap lies between \vGapMin{} and \vGapMax{} HOTA
 points, and the AssA gap is always larger than the DetA gap.
 
-The two groups differ in more than camera motion. However, the differences we can measure favour the moving group:
-its sequences are less crowded, its people are larger in the image and better visible (Table~\ref{tab:seq}). Crowding
-therefore cannot explain the gap, which motivates a per-frame analysis inside each sequence.
+\textbf{One sequence drives the pooled gap.} Pooled metrics weight every ground-truth box equally, and MOT17-04 alone
+holds \vFourShareStaticGT\% of the static boxes. Table~\ref{tab:loso} repeats the comparison with each sequence left out.
+Without MOT17-04, static cameras reach only \vLosoNoFourStatic{} HOTA and the gap reverses to $\vLosoNoFourGap$; with any
+other sequence left out it stays between \vLosoRestGapMin{} and \vLosoRestGapMax. Averaged per sequence, the gap is
+\vSeqMeanGap{} HOTA points (AssA \vSeqMeanAssAGap). The static-versus-moving difference in HOTA is therefore not robust
+with seven sequences, and we do not claim it.
+
+The groups also differ in resolution and frame rate (MOT17-05: $640\times480$, 14\,fps), crowding, lighting and
+viewpoint (Table~\ref{tab:seq}); E3 therefore compares frames within each sequence, where these are fixed.
+
+\begin{table}[t]
+\centering
+\caption{Leave-one-sequence-out check (official settings). HOTA pooled over the remaining sequences of each group;
+re-found: lost tracks matched again after 9--16 lost frames (E3).}
+\label{tab:loso}
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\input{tables/tab_loso}
+\end{table}
 
 \begin{table*}[t]
 \centering
-\caption{Per-sequence properties and results (official settings). Motion: median camera motion per frame (E3).
-Pred.\ IoU: mean IoU between a one-frame Kalman prediction and its matched detection. $\rho$: Spearman correlation
-over the frames of the sequence.}
+\caption{Per-sequence properties and results (official settings). Res.: image height. Motion: median camera motion
+per frame (E3). Pred.\ IoU: mean IoU between a one-frame Kalman prediction and its matched detection. $\rho$: Spearman
+correlation over the frames of the sequence. Re-found: lost tracks matched again after 9--16 lost frames.}
 \label{tab:seq}
 \footnotesize
 \setlength{\tabcolsep}{4pt}
@@ -155,7 +169,8 @@ over the frames of the sequence.}
 \subsection{E3: Camera motion and the Kalman prediction}\label{sec:e3}
 \textbf{Camera motion.} The median camera motion is at most \vMotionStaticMax\% of the diagonal per frame on static
 sequences, which is estimation noise, and \vMotionMovingMin--\vMotionMovingMax\% on moving sequences, about one hundred
-times more.
+times more. Motion is measured per frame, as the Kalman filter sees it, so the 14\,fps of MOT17-05 roughly doubles
+its motion per frame; all statistics below are computed within a sequence.
 
 \textbf{One-frame prediction.} Inside every moving sequence, frames with more camera motion have a lower prediction
 IoU (Spearman $\rho$ from \vRhoMovMin{} to \vRhoMovMax, $p<0.001$; Fig.~\ref{fig:binned}, left). At the level of
@@ -168,24 +183,11 @@ low-motion half \vLowSwk{} (\vHighSw{} vs.\ \vLowSw{} events), which is no clear
 
 \begin{figure*}[t]
 \centering
-\includegraphics[width=0.92\textwidth]{fig_e3_binned}
-\caption{Frame-level relations, binned by camera motion. Left: IoU of one-frame predictions with their matched
-detections. Middle: share of predictions without a matching high-score detection. Right: ID switches per 1{,}000
-ground-truth boxes. Bins mix sequences; claims in the text use within-sequence statistics.}
+\includegraphics[width=0.72\textwidth]{fig_e3_binned}
+\caption{Binned by camera motion: one-frame prediction IoU (left), share of unmatched predictions (middle), ID switches
+per 1{,}000 boxes (right). Bins mix sequences; the text uses within-sequence statistics.}
 \label{fig:binned}
 \end{figure*}
-
-\textbf{Lost tracks.} The loss appears when a track has been lost and must be found again (Fig.~\ref{fig:lost}). The
-prediction of a lost track is extrapolated over several frames, and its best IoU with any detection falls much faster
-with a moving camera. After 9--16 lost frames, the best IoU is \vLostIoUMoving{} against \vLostIoUStatic{}, and only
-\vLostMoving\% of the lost tracks are re-found, against \vLostStatic\% on static cameras. A track that is not re-found
-comes back with a new identity, which is consistent with the larger AssA gap in E2. Fig.~\ref{fig:case} shows a frame of
-MOT17-13 with the predicted and detected boxes.
-
-Within the moving sequences, however, the camera motion accumulated during the gap does not predict recovery once the
-gap length is fixed (median $\rho=\vLostRhoWithin$ over 30 gap lengths; pooled $\rho=\vLostRhoPooled$ is driven by gap
-length). The penalty is therefore a property of moving-camera video as a whole rather than proportional to the size
-of the motion.
 
 \begin{figure}[t]
 \centering
@@ -202,69 +204,78 @@ prediction and any high-score detection.}
 \label{fig:case}
 \end{figure}
 
+\begin{figure*}[t]
+\centering
+\includegraphics[width=0.72\textwidth]{fig_e4_sensitivity}
+\caption{E4: HOTA of static and moving cameras when one parameter changes (dashed line: official value).}
+\label{fig:e4}
+\end{figure*}
+
+\textbf{Lost tracks.} The loss appears when a track has been lost and must be found again (Fig.~\ref{fig:lost}). The
+prediction of a lost track is extrapolated over several frames, and its best IoU with any detection falls much faster
+with a moving camera. After 9--16 lost frames, the best IoU is \vLostIoUMoving{} against \vLostIoUStatic{}, and only
+\vLostMoving\% of the lost tracks are re-found, against \vLostStatic\% on static cameras. A track that is not re-found
+comes back with a new identity. Unlike the HOTA gap, this result survives the leave-one-out check: static cameras
+re-find \vLosoRefStatMin--\vLosoRefStatMax\% and moving cameras \vLosoRefMovMin--\vLosoRefMovMax\% with any sequence
+left out (Table~\ref{tab:loso}), and static cameras stay ahead in all \vPairsRefCount{} subsets without one static and
+one moving sequence. Per sequence, the best IoU is \vSeqBestIoUStatMin--\vSeqBestIoUStatMax{} on every static and
+\vSeqBestIoUMovMin--\vSeqBestIoUMovMax{} on every moving sequence (Table~\ref{tab:seq}). Fig.~\ref{fig:case} shows an example.
+
+Within the moving sequences, however, the camera motion accumulated during the gap does not predict recovery once the
+gap length is fixed (median $\rho=\vLostRhoWithin$ over 30 gap lengths; pooled $\rho=\vLostRhoPooled$ is driven by gap
+length). The penalty is therefore a property of moving-camera video as a whole rather than proportional to the size
+of the motion.
+
+
+
 \subsection{E4: Sensitivity study}\label{sec:e4}
 We change one tracker parameter at a time around the official settings: the high-score threshold (0.4--0.7), the
 matching threshold (0.7--0.95), the lost-track buffer (10--90 frames) and the standard deviation of the Kalman
-\emph{process} noise ($\times0.25$ to $\times4$, measurement noise fixed). Scaling all noise terms of ByteTrack's filter
-together leaves the Kalman gain, and therefore every prediction, unchanged, so only the process noise is varied. The
-aim is to test whether the gap is stable, not to remove it.
+\emph{process} noise ($\times0.25$ to $\times4$, measurement noise fixed). Scaling all noise terms together leaves the Kalman gain unchanged, so only the process noise is varied. The aim is
+to test the gap, not to remove it.
 
-Across all \vEfourN{} settings, moving cameras stay between \vEfourGapMin{} and \vEfourGapMax{} HOTA points behind static
-cameras (Fig.~\ref{fig:e4}), and the AssA gap exceeds the DetA gap in \vEfourAssaCount{} of them. The thresholds and the
+Across all \vEfourN{} settings, the pooled gap stays between \vEfourGapMin{} and \vEfourGapMax{} HOTA points
+(Fig.~\ref{fig:e4}; pooled, so subject to the caveat of Sec.~\ref{sec:e2}), and the AssA gap exceeds the DetA gap in \vEfourAssaCount{} of them. The thresholds and the
 buffer hardly move the moving-camera result (HOTA \vEfourOtherMovMin--\vEfourOtherMovMax; gap
 \vEfourOtherGapMin--\vEfourOtherGapMax). The Kalman process noise is the only parameter that acts mainly on the moving
 group: making the filter trust its constant-velocity model more ($\times0.25$) lowers moving-camera HOTA to
 \vKfQuarterMov{} while static cameras keep \vKfQuarterStat, and allowing more process noise ($\times2$) raises it to
-\vKfTwoMov{} while static cameras drop to \vKfTwoStat. This asymmetry is consistent with E3: moving-camera tracks depend
-on how quickly the filter accepts a change of image motion. Overall HOTA is highest at the official setting, so no
-setting removes the gap without a cost elsewhere.
+\vKfTwoMov{} while static cameras drop to \vKfTwoStat. This is consistent with E3. Overall HOTA is highest at the official setting.
 
-\begin{figure*}[t]
-\centering
-\includegraphics[width=0.92\textwidth]{fig_e4_sensitivity}
-\caption{E4: HOTA of static and moving cameras when one parameter changes (dashed line: official value).}
-\label{fig:e4}
-\end{figure*}
+
 
 % =====================================================================================================
 \section{Discussion and Limitations}
 Our results agree with the motivation of camera-motion compensation in BoT-SORT~\cite{aharon2022botsort}, but they
 locate the problem more precisely: for ByteTrack on MOT17, camera motion hardly breaks frame-to-frame matching; it
-mainly breaks the re-association of tracks after a gap. Three limitations apply. First, there are only seven sequences,
-and the groups also differ in frame rate, viewpoint and lighting, so all results are correlational. Second, our camera
-model is a 2-D similarity transform, which cannot describe parallax or the forward motion in MOT17-13. Third, the
-analysis covers one detector and one tracker, and the sensitivity study changes one parameter at a time.
+mainly breaks the re-association of tracks after a gap. Limitations: with seven sequences the pooled HOTA gap depends on one of them, and the groups also differ in
+resolution, frame rate, crowding and lighting, so all results are correlational; the 2-D similarity camera model ignores
+parallax; and we study one detector and one tracker, changing one parameter at a time.
 
 \section{Conclusion}
-We reproduced ByteTrack on MOT17 half-val with the published MOTA and IDF1 and showed that the published numbers use
-the code's matching threshold. Moving-camera sequences lose about \vGapHOTA{} HOTA points, mainly in association. Camera
-motion degrades the Kalman prediction measurably, but the cost appears in the recovery of lost tracks, not in
-frame-to-frame matching. The gap remains under all tracker settings we tested, and only the Kalman process noise changes it noticeably, which points to the motion model, rather than the detector or the matching thresholds, as the part to examine in future work.
+We reproduced ByteTrack's published MOTA and IDF1 on MOT17 half-val, using the code's matching threshold. The pooled
+HOTA gap of \vGapHOTA{} points for moving cameras depends on one sequence (\vSeqMeanGap{} points per sequence). Camera
+motion degrades the Kalman prediction, and the cost that holds sequence by sequence is in re-finding lost tracks, not in
+frame-to-frame matching. The motion model, the only part whose setting changes the pooled gap, is the part to examine next.
 
+\FloatBarrier
 \bibliographystyle{IEEEtran}
 \bibliography{references}
 
 \appendices
 \section{Reproducibility}
 {\footnotesize\raggedright
-\textbf{Code:} \url{https://github.com/vanowarna/bytetrack-moving-camera}, release \texttt{v1.0} (commit \texttt{\repocommit}).
+\textbf{Code:} \url{https://github.com/vanowarna/bytetrack-moving-camera}, release \texttt{v1.1} (commit \texttt{\repocommit}).
 \textbf{Environment:} Python 3.11, PyTorch 2.7.1 (CUDA 12.8), locked with \texttt{uv}; ByteTrack \texttt{d1bf019};
 TrackEval \texttt{12c8791}; NVIDIA RTX 5050 Laptop GPU (8\,GB).
 \textbf{Run times:} detection \vDetMsFP{}\,ms per frame in FP16 (a few minutes for the 2{,}652 frames, run once and
 cached); the live demonstration on MOT17-13 (detection, tracking, evaluation and video) takes about one minute.
 \textbf{Seeds:} fixed; all tracking runs are deterministic given the cached detections.
-\textbf{Commands} (all in \texttt{scripts/}; \texttt{make\_paper\_assets.py} then writes every number, table and figure):\par
-\smallskip
-\setlength{\tabcolsep}{3pt}\begin{tabular}{@{}ll@{}}
-Data split & \texttt{make\_splits.py} \\
-Table~\ref{tab:e1} (E1) & \texttt{run\_many.py -{}-configs "configs/e1\_*.yaml"} \\
- & \texttt{\phantom{run\_many.py} -{}-table e1} \\
-Table~\ref{tab:seq} (E2) & \texttt{analyze\_e2.py} \\
-E3, Figs.~\ref{fig:binned}--\ref{fig:case} & \texttt{run\_camera\_motion.py}, \texttt{run\_e3\_log.py}, \\
- & \texttt{analyze\_e3.py} \\
-E4, Fig.~\ref{fig:e4} & \texttt{make\_e4\_configs.py}, \texttt{run\_many.py}, \\
- & \texttt{analyze\_e4.py} \\
-\end{tabular}\par}
+\textbf{Commands} (in \texttt{scripts/}): \texttt{make\_splits.py}; Table~\ref{tab:e1}: \texttt{run\_many.py -{}-configs "configs/e1\_*.yaml" -{}-table e1};
+Table~\ref{tab:seq}: \texttt{analyze\_e2.py}; Table~\ref{tab:loso}: \texttt{analyze\_loso.py};
+Figs.~\ref{fig:binned}--\ref{fig:case}: \texttt{run\_camera\_motion.py}, \texttt{run\_e3\_log.py}, \texttt{analyze\_e3.py};
+Fig.~\ref{fig:e4}: \texttt{make\_e4\_configs.py}, \texttt{run\_many.py}, \texttt{analyze\_e4.py};
+then \texttt{make\_paper\_assets.py} writes every number, table and figure of this paper.\par}
 
 \IfFileExists{appendix_ai.tex}{\input{appendix_ai}}{}
 

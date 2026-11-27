@@ -11,9 +11,9 @@ Author: Vanodhya Warnasooriya.
 | Finding | Result |
 |---|---|
 | E1: reproduction (MOTA / IDF1) | 76.6 / 79.3, equal to the paper (code default match threshold 0.9) |
-| E2: HOTA static vs moving | 71.2 vs 60.3; gap mainly in association (AssA −13.4, DetA −8.4) |
-| E3: lost tracks re-found after 9–16 frames | 2.1% moving vs 6.0% static |
-| E4: gap over 15 tracker settings | 8.8–16.5 HOTA; only the Kalman process noise changes it noticeably |
+| E2: HOTA static vs moving | 71.2 vs 60.3 pooled (gap 10.9, mainly AssA); leave-one-sequence-out: the gap depends on MOT17-04 (−8.3 without it; 3.5 averaged per sequence) |
+| E3: lost tracks re-found after 9–16 frames | 2.1% moving vs 6.0% static; holds with any sequence left out (12/12 pairs); best IoU 0.24–0.32 on every static vs 0.05–0.12 on every moving sequence |
+| E4: pooled gap over 15 tracker settings | 8.8–16.5 HOTA; only the Kalman process noise changes it noticeably |
 
 ## Which command makes which table or figure
 
@@ -21,9 +21,10 @@ Author: Vanodhya Warnasooriya.
 |---|---|
 | Data split | `uv run python scripts/make_splits.py` |
 | Table I (E1) | `uv run python scripts/run_many.py --configs "configs/e1_*.yaml" --table e1` |
-| Table II (E2 columns), E2 numbers | `uv run python scripts/analyze_e2.py --run e1_default --gap-runs e1_default e1_fp32 e1_interp20 e1_match08 e1_match08_interp20 e1_sort` |
-| Figs. 1–3, E3 columns of Table II | `run_camera_motion.py`, `run_e3_log.py`, `analyze_e3.py` (see E3 below) |
+| Table III (E2 columns), E2 numbers | `uv run python scripts/analyze_e2.py --run e1_default --gap-runs e1_default e1_fp32 e1_interp20 e1_match08 e1_match08_interp20 e1_sort` |
+| Figs. 1–3, E3 columns of Table III | `run_camera_motion.py`, `run_e3_log.py`, `analyze_e3.py` (see E3 below) |
 | Fig. 4 (E4) | `make_e4_configs.py`, `run_many.py --configs "configs/e4/*.yaml" --table e4`, `analyze_e4.py` |
+| Table II (leave one sequence out) | `uv run python scripts/analyze_loso.py` (after E3) |
 | All numbers, tables and figures of the paper | `uv run python scripts/make_paper_assets.py` |
 | Project page data | `uv run python scripts/make_site_data.py` |
 

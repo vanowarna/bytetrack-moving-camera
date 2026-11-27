@@ -112,6 +112,25 @@ def main():
         for r in rows(RES / "e4" / "e4_sensitivity.csv")
     ]
 
+    # Robustness: leave one sequence out (scripts/analyze_loso.py)
+    lp = RES / "e2" / "loso_e1_default.csv"
+    if lp.exists():
+        data["loso"] = [
+            {"left_out": r["left_out"], "group": r["group_left_out"],
+             "HOTA_static": num(r["HOTA_static"], 1), "HOTA_moving": num(r["HOTA_moving"], 1),
+             "gap": num(r["HOTA_gap"], 1), "gap_AssA": num(r["AssA_gap"], 1), "gap_seqmean": num(r["HOTA_gap_seqmean"], 1),
+             "refound_static": num(r["refound_static"], 1), "refound_moving": num(r["refound_moving"], 1)}
+            for r in rows(lp)
+        ]
+        pairs = rows(RES / "e2" / "loso_pairs_e1_default.csv")
+        data["loso_pairs"] = {"n": len(pairs),
+                              "refound_static_ahead": sum(float(r["refound_static"]) > float(r["refound_moving"]) for r in pairs)}
+        data["lost_per_seq"] = [
+            {"seq": r["seq"], "group": r["group"], "refound": num(r["refound_9_16"], 1), "best_iou": num(r["best_iou_9_16"], 2),
+             "n": num(r["n"], 0)}
+            for r in rows(RES / "e2" / "lost_per_seq.csv")
+        ]
+
     # Environment of the official run (no local paths)
     env = json.loads((RES / "e1_default" / "env.json").read_text(encoding="utf-8"))
     data["env"] = {k: env.get(k) for k in ["python", "cuda", "gpu", "bytetrack_commit", "trackeval_commit"]}

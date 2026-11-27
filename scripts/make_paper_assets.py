@@ -115,23 +115,25 @@ def main():
     # combined per-sequence table (E2 properties + metrics, E3 motion + prediction)
     e2s = {r["seq"].replace("MOT17-", ""): r for r in rcsv(RESULTS_DIR / "e2" / "e2_sequences.csv")}
     e3s = {r["seq"]: r for r in rcsv(RESULTS_DIR / "e3" / "e3_per_seq.csv")}
-    rows = [r"\begin{tabular}{llrrrlrrrrrrr}", r"\toprule",
-            r" & & & People/ & Height & & & & & IDSW/ & Motion & Pred. & $\rho$(motion, \\",
-            r"Seq. & Cam. & FPS & frame & (\%) & Scene & HOTA & DetA & AssA & 1k GT & (\%diag) & IoU & pred.\ IoU) \\",
+    lps = {r["seq"]: r for r in rcsv(RESULTS_DIR / "e2" / "lost_per_seq.csv")}
+    rows = [r"\begin{tabular}{llrrrrlrrrrrrrr}", r"\toprule",
+            r" & & & Res. & People/ & Height & & & & & IDSW/ & Motion & Pred. & $\rho$(motion, & Re-found \\",
+            r"Seq. & Cam. & FPS & (px) & frame & (\%) & Scene & HOTA & DetA & AssA & 1k GT & (\%diag) & IoU & pred.\ IoU) & 9--16 (\%) \\",
             r"\midrule"]
     order = sorted(e2s, key=lambda k: (e2s[k]["group"] != "static", k))
     for k in order:
         a, b = e2s[k], e3s[k]
-        rows.append(f"{k} & {a['camera'][0].upper()} & {a['fps']} & {float(a['density']):.1f} & {float(a['box_h_rel']):.0f} & "
+        rows.append(f"{k} & {a['camera'][0].upper()} & {a['fps']} & {a['resolution'].split('x')[1]} & {float(a['density']):.1f} & {float(a['box_h_rel']):.0f} & "
                     f"{a['conditions']} & {f1(a['HOTA'])} & {f1(a['DetA'])} & {f1(a['AssA'])} & {float(a['IDSW_per_1k']):.1f} & "
-                    f"{float(b['motion_median']):.3f} & {float(b['pred_iou']):.2f} & {float(b['rho_motion_iou']):+.2f} \\\\")
+                    f"{float(b['motion_median']):.3f} & {float(b['pred_iou']):.2f} & {float(b['rho_motion_iou']):+.2f} & "
+                    f"{float(lps[k]['refound_9_16']):.1f} \\\\")
         if k == order[2]:
             rows.append(r"\midrule")
     rows += [r"\midrule"]
     for g in ("static", "moving"):
         r = groups[g]
-        rows.append(f"\\multicolumn{{6}}{{l}}{{All {g}}} & {f1(r['HOTA'])} & {f1(r['DetA'])} & {f1(r['AssA'])} & "
-                    f"{float(r['IDSW_per_1k']):.1f} & & & \\\\")
+        rows.append(f"\\multicolumn{{7}}{{l}}{{All {g} (pooled)}} & {f1(r['HOTA'])} & {f1(r['DetA'])} & {f1(r['AssA'])} & "
+                    f"{float(r['IDSW_per_1k']):.1f} & & & & {float(s['lost_rematch_9_16'][g]):.1f} \\\\")
     rows += [r"\bottomrule", r"\end{tabular}"]
     (TAB / "tab_seq.tex").write_text("\n".join(rows) + "\n", encoding="utf-8")
 
@@ -147,6 +149,44 @@ def main():
                     f"{float(st['best_iou']):.2f} & {float(mv['best_iou']):.2f} \\\\")
     rows += [r"\bottomrule", r"\end{tabular}"]
     (TAB / "tab_lost.tex").write_text("\n".join(rows) + "\n", encoding="utf-8")
+
+    # ---------------- robustness: leave one sequence out ----------------
+    lp = RESULTS_DIR / "e2" / "loso_e1_default.csv"
+    if lp.exists():
+        lo = rcsv(lp)
+        base = next(r for r in lo if r["left_out"] == "none")
+        out = [r for r in lo if r["left_out"] != "none"]
+        pairs = rcsv(RESULTS_DIR / "e2" / "loso_pairs_e1_default.csv")
+        g = lambda r, k: float(r[k])  # noqa: E731
+        no04 = next(r for r in out if r["left_out"] == "04")
+        rest = [r for r in out if r["left_out"] != "04"]
+        st_gt = {r["seq"]: float(r["gt_boxes"]) for r in rcsv(RESULTS_DIR / "e2" / "e2_sequences.csv")}
+        lps_all = rcsv(RESULTS_DIR / "e2" / "lost_per_seq.csv")
+        bi = lambda grp: [float(r["best_iou_9_16"]) for r in lps_all if r["group"] == grp]  # noqa: E731
+        N.update(SeqMeanGap=f1(base["HOTA_gap_seqmean"]), SeqMeanAssAGap=f1(base["AssA_gap_seqmean"]),
+                 LosoGapMin=f1(min(g(r, "HOTA_gap") for r in out)), LosoGapMax=f1(max(g(r, "HOTA_gap") for r in out)),
+                 LosoNoFourGap=f1(no04["HOTA_gap"]), LosoNoFourStatic=f1(no04["HOTA_static"]),
+                 LosoRestGapMin=f1(min(g(r, "HOTA_gap") for r in rest)), LosoRestGapMax=f1(max(g(r, "HOTA_gap") for r in rest)),
+                 FourShareStaticGT=f"{100 * st_gt['MOT17-04'] / (st_gt['MOT17-02'] + st_gt['MOT17-04'] + st_gt['MOT17-09']):.0f}",
+                 LosoRefStatMin=f1(min(g(r, "refound_static") for r in out)), LosoRefStatMax=f1(max(g(r, "refound_static") for r in out)),
+                 LosoRefMovMin=f1(min(g(r, "refound_moving") for r in out)), LosoRefMovMax=f1(max(g(r, "refound_moving") for r in out)),
+                 PairsN=len(pairs), PairsRefCount=sum(g(r, "refound_static") > g(r, "refound_moving") for r in pairs),
+                 SeqBestIoUStatMin=f"{min(bi('static')):.2f}", SeqBestIoUStatMax=f"{max(bi('static')):.2f}",
+                 SeqBestIoUMovMin=f"{min(bi('moving')):.2f}", SeqBestIoUMovMax=f"{max(bi('moving')):.2f}")
+        rows = [r"\begin{tabular}{lrrrrr}", r"\toprule",
+                r"Left out & \multicolumn{3}{c}{HOTA} & \multicolumn{2}{c}{Re-found 9--16 (\%)} \\",
+                r" & static & moving & gap & static & moving \\", r"\midrule"]
+        for r in [base] + sorted(out, key=lambda r: (r["group_left_out"] != "static", r["left_out"])):
+            lab = "none" if r["left_out"] == "none" else f"{r['left_out']} ({r['group_left_out'][0].upper()})"
+            gap = f1(r["HOTA_gap"])
+            if r["left_out"] == "04":
+                gap = r"\textbf{" + gap + "}"
+            rows.append(f"{lab} & {f1(r['HOTA_static'])} & {f1(r['HOTA_moving'])} & {gap} & "
+                        f"{f1(r['refound_static'])} & {f1(r['refound_moving'])} \\\\")
+            if r["left_out"] == "none":
+                rows.append(r"\midrule")
+        rows += [r"\bottomrule", r"\end{tabular}"]
+        (TAB / "tab_loso.tex").write_text("\n".join(rows) + "\n", encoding="utf-8")
 
     # ---------------- E4 ----------------
     e4p = RESULTS_DIR / "e4" / "e4_sensitivity.csv"
@@ -179,7 +219,8 @@ def main():
             missing.append(name)
             continue
         for old in FIG.glob(f"{name}.*"):
-            old.unlink()
+            if old.suffix != src.suffix:
+                old.unlink()
         shutil.copyfile(src, FIG / src.name)
 
     # ---------------- numbers.tex ----------------

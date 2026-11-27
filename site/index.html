@@ -4,9 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ByteTrack Under Camera Motion</title>
-<meta name="description" content="Reproduction of ByteTrack on MOT17 and an analysis of why moving cameras lose 10.9 HOTA: lost tracks are not re-found.">
+<meta name="description" content="Reproduction of ByteTrack on MOT17 and an analysis of camera motion: lost tracks are not re-found on moving cameras, a result that holds video by video.">
 <meta property="og:title" content="ByteTrack Under Camera Motion">
-<meta property="og:description" content="ByteTrack reproduced exactly on MOT17; moving cameras lose 10.9 HOTA, mainly because lost tracks are not re-found.">
+<meta property="og:description" content="ByteTrack reproduced exactly on MOT17; on moving cameras, lost tracks are not re-found, a result that holds with any video left out.">
 <meta property="og:image" content="assets/demo_poster.jpg">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='3' y='7' width='12' height='20' rx='2' fill='none' stroke='%231A73E8' stroke-width='3'/%3E%3Crect x='14' y='5' width='12' height='20' rx='2' fill='none' stroke='%23E8710A' stroke-width='3' stroke-dasharray='4 3'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -184,7 +184,7 @@ footer li{margin:4px 0}
   <div class="wrap">
     <p class="eyebrow">Reproduction &amp; analysis · MOT17</p>
     <h1>ByteTrack Under Camera Motion</h1>
-    <p class="sub">ByteTrack reproduces exactly. On moving cameras it loses <span style="color:#FDAE6B">10.9 HOTA</span>, and the loss is not in frame-to-frame matching: <b style="color:#F8F9FA;font-weight:500">lost tracks are not found again.</b></p>
+    <p class="sub">ByteTrack reproduces exactly. With a moving camera, frame-to-frame matching still works, but <b style="color:#F8F9FA;font-weight:500">lost tracks are not found again</b>, and this holds video by video. The pooled <span style="color:#FDAE6B">10.9 HOTA</span> gap, by contrast, depends on one video.</p>
     <p class="who"><b>Vanodhya Warnasooriya</b> · Department of Electrical Engineering, Chulalongkorn University · 2102515 Digital Video Processing, 2026</p>
     <div class="btns">
       <a class="btn primary" href="assets/paper.pdf"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/></svg>Paper</a>
@@ -201,9 +201,9 @@ footer li{margin:4px 0}
     <h2 style="margin-top:12px">Four numbers that tell the story</h2>
     <div class="grid g4 mt">
       <div class="card stat"><div class="big" id="s-repro">–</div><div class="lbl">MOTA / IDF1 reproduced, equal to the paper</div><div class="src">MOT17 half-val, official code and weights</div></div>
-      <div class="card stat"><div class="big moving-c" id="s-gap">–</div><div class="lbl">HOTA lost on moving cameras</div><div class="src" id="s-gap-src">static vs moving sequences</div></div>
-      <div class="card stat"><div class="big" id="s-share">–</div><div class="lbl">of ID switches come from moving cameras, with only <span id="s-share-gt">–</span> of the boxes</div><div class="src">identity errors are concentrated there</div></div>
-      <div class="card stat"><div class="big" id="s-lost">–</div><div class="lbl">of lost tracks re-found after 9–16 frames: <span class="moving-c">moving</span> vs <span class="static-c">static</span></div><div class="src">the mechanism behind the gap</div></div>
+      <div class="card stat"><div class="big" id="s-gap">–</div><div class="lbl">HOTA gap static vs moving: pooled over boxes → averaged per video</div><div class="src" id="s-gap-src">–</div></div>
+      <div class="card stat"><div class="big" id="s-share">–</div><div class="lbl">of ID switches come from moving cameras, with only <span id="s-share-gt">–</span> of the boxes</div><div class="src">pooled over all boxes</div></div>
+      <div class="card stat"><div class="big" id="s-lost">–</div><div class="lbl">of lost tracks re-found after 9–16 frames: <span class="moving-c">moving</span> vs <span class="static-c">static</span></div><div class="src" id="s-lost-src">holds with any video left out</div></div>
     </div>
   </div>
 </section>
@@ -251,11 +251,11 @@ footer li{margin:4px 0}
 <section id="e2">
   <div class="wrap">
     <p class="eyebrow">E2 · Static vs moving camera</p>
-    <h2 style="margin-top:12px">Moving cameras lose mostly in association</h2>
+    <h2 style="margin-top:12px">Pooled, moving cameras lose 10.9 HOTA. Video by video, much less.</h2>
     <p class="lead">MOT17-02, 04 and 09 are filmed from a static camera; MOT17-05, 10, 11 and 13 from a moving one. Same detector, same tracker, same settings.</p>
     <div class="grid g2 mt">
       <div class="card">
-        <h3>HOTA and its two parts</h3>
+        <h3>HOTA and its two parts (pooled)</h3>
         <div class="legend mt2" style="margin-bottom:6px"><span><i class="sw" style="background:var(--static)"></i>static</span><span><i class="sw" style="background:var(--moving)"></i>moving</span></div>
         <div class="chart" id="e2Groups"></div>
         <p class="note">DetA: detection accuracy. AssA: association accuracy (keeping the same ID).</p>
@@ -268,15 +268,23 @@ footer li{margin:4px 0}
       </div>
     </div>
     <div class="card mt2">
+      <h3>Leave one video out</h3>
+      <p class="small">With three static and four moving videos, one video can drive a group difference. Each bar repeats the comparison with one video removed.</p>
+      <div class="legend mt2" style="margin-bottom:6px"><span><i class="sw" style="background:var(--static)"></i><span id="losoLegS">static video left out</span></span><span><i class="sw" style="background:var(--moving)"></i><span id="losoLegM">moving video left out</span></span></div>
+      <div class="controls"><span class="lab">Show</span><div class="seg" id="losoMetric"></div></div>
+      <div class="chart" id="losoChart"></div>
+      <p class="note" id="losoNote"></p>
+    </div>
+    <div class="card mt2">
       <h3>Per sequence</h3>
       <div class="controls mt2"><span class="lab">Show</span><div class="seg" id="seqMetric"></div></div>
       <div class="chart" id="e2Seq"></div>
-      <p class="note">The measurable confounds favour the moving group: fewer people per frame and larger people. Crowding cannot explain the gap.</p>
+      <p class="note">The groups also differ in resolution (MOT17-05: 640×480), frame rate (MOT17-05: 14 fps) and crowding. That is why E3 compares frames within each video.</p>
       <details><summary>Show as a table</summary><div class="tbl-wrap mt2" id="seqTable"></div></details>
     </div>
     <div class="card mt2">
-      <h3>The gap is stable</h3>
-      <p class="small">HOTA gap (static − moving) under the six E1 settings. The AssA gap is larger than the DetA gap in every one.</p>
+      <h3>The pooled gap across the E1 settings</h3>
+      <p class="small">HOTA gap (static − moving), pooled, under the six E1 settings. The AssA gap is larger than the DetA gap in every one.</p>
       <div class="legend mt2" style="margin-bottom:6px"><span><i class="sw" style="background:var(--muted)"></i>HOTA gap</span><span><i class="sw" style="background:var(--grid);outline:1px solid var(--line)"></i>DetA gap</span><span><i class="sw" style="background:var(--ink2)"></i>AssA gap</span></div>
       <div class="chart" id="e2Gap"></div>
     </div>
@@ -308,17 +316,23 @@ footer li{margin:4px 0}
       <div class="controls mt2"><span class="lab">Show</span><div class="seg" id="lostMetric"></div></div>
       <div class="legend" style="margin-bottom:6px"><span><i class="sw line" style="background:var(--static)"></i>static</span><span><i class="sw line" style="background:var(--moving)"></i>moving</span></div>
       <div class="chart" id="lostChart"></div>
-      <p class="note">A lost track’s prediction is extrapolated over several frames. With a moving camera it drifts off the person, so the track comes back with a new ID: that is the larger AssA gap of E2.</p>
+      <p class="note">A lost track’s prediction is extrapolated over several frames. With a moving camera it drifts off the person, so the track comes back with a new ID.</p>
     </div>
-    <p class="takeaway">Camera motion degrades the one-frame Kalman prediction measurably, but the predicted box still overlaps its detection well enough. <b>The cost appears when a lost track must be found again.</b></p>
+    <div class="card mt2">
+      <h3>Video by video: the result that survives</h3>
+      <div class="controls mt2"><span class="lab">Show</span><div class="seg" id="lpsMetric"></div></div>
+      <div class="chart" id="lpsChart"></div>
+      <p class="note" id="lpsNote"></p>
+    </div>
+    <p class="takeaway">Camera motion degrades the one-frame Kalman prediction measurably, but the predicted box still overlaps its detection well enough. <b>The robust cost appears when a lost track must be found again</b>: it holds on every video and with any video left out.</p>
   </div>
 </section>
 
 <section id="e4">
   <div class="wrap">
     <p class="eyebrow">E4 · Sensitivity</p>
-    <h2 style="margin-top:12px">The gap persists in all 15 settings</h2>
-    <p class="lead">One parameter at a time around the official settings. This is a sensitivity study, not a fix.</p>
+    <h2 style="margin-top:12px">The pooled gap persists in all 15 settings</h2>
+    <p class="lead">One parameter at a time around the official settings. This is a sensitivity study, not a fix; the gap is pooled, so the leave-one-out caveat of E2 applies.</p>
     <div class="card mt">
       <div class="controls"><span class="lab">Parameter</span><div class="seg" id="e4Param"></div></div>
       <div class="legend" style="margin-bottom:6px"><span><i class="sw line" style="background:var(--static)"></i>static</span><span><i class="sw line" style="background:var(--moving)"></i>moving</span><span><i class="sw dash"></i>official value</span></div>
@@ -360,6 +374,7 @@ uv run python scripts/run_many.py --configs "configs/e1_*.yaml" --table e1</pre>
 uv run python scripts/run_camera_motion.py --config configs/e1_default.yaml
 uv run python scripts/run_e3_log.py --config configs/e1_default.yaml
 uv run python scripts/analyze_e3.py --case-seq MOT17-13-FRCNN
+uv run python scripts/analyze_loso.py
 uv run python scripts/make_e4_configs.py
 uv run python scripts/run_many.py --configs "configs/e4/*.yaml" --table e4
 uv run python scripts/analyze_e4.py
@@ -381,7 +396,7 @@ uv run python scripts/make_paper_assets.py</pre></div></div>
   url    = {https://github.com/vanowarna/bytetrack-moving-camera}
 }</pre>
     <h3 class="mt">Limitations</h3>
-    <p class="small" style="margin-top:8px;max-width:820px">Seven sequences, so all evidence is correlational; the groups also differ in frame rate, viewpoint and lighting. The camera model is a 2-D similarity transform (no parallax). One detector and one tracker; one parameter changed at a time.</p>
+    <p class="small" style="margin-top:8px;max-width:820px">Seven sequences, so all evidence is correlational: the pooled HOTA gap depends on MOT17-04, and the groups also differ in resolution, frame rate, crowding, viewpoint and lighting. The lost-track result is the one that holds video by video. The camera model is a 2-D similarity transform (no parallax). One detector and one tracker; one parameter changed at a time.</p>
   </div>
 </section>
 
@@ -494,8 +509,10 @@ const def = R.e1.find(r => r.run === 'e1_default');
 const G = R.groups;
 const gapH = G.static.HOTA - G.moving.HOTA;
 $('#s-repro').textContent = `${fmt(def.MOTA)} / ${fmt(def.IDF1)}`;
-$('#s-gap').textContent = `−${fmt(gapH)}`;
-$('#s-gap-src').textContent = `HOTA ${fmt(G.static.HOTA)} static vs ${fmt(G.moving.HOTA)} moving`;
+const L0 = (R.loso || []).find(r => r.left_out === 'none');
+const L04 = (R.loso || []).find(r => r.left_out === '04');
+$('#s-gap').innerHTML = L0 ? `<span class="moving-c">${fmt(gapH)}</span> <span style="font-size:.5em;color:var(--muted)">→</span> ${fmt(L0.gap_seqmean)}` : fmt(gapH);
+$('#s-gap-src').textContent = L04 ? `without MOT17-04 the pooled gap reverses to ${fmt(L04.gap)}` : '';
 $('#s-share').innerHTML = `<span class="moving-c">${Math.round(G.moving.share_IDSW)}%</span>`;
 $('#s-share-gt').textContent = `${Math.round(G.moving.share_GT)}%`;
 const l916 = g => R.lost.find(r => r.group === g && r.gap === '9-16');
@@ -858,8 +875,88 @@ const io = new IntersectionObserver(es => es.forEach(e => {
 }), { rootMargin: '-45% 0px -50% 0px' });
 ['overview', 'idea', 'e1', 'e2', 'e3', 'e4', 'demo', 'reproduce', 'cite'].forEach(id => io.observe(document.getElementById(id)));
 
+
+/* ---------- E2 leave one out ---------- */
+let losoKey = 'gap';
+seg($('#losoMetric'), [['gap', 'HOTA gap'], ['refound', 'Lost tracks re-found (9–16 frames)']], losoKey, k => { losoKey = k; renderLoso(); });
+function renderLoso() {
+  const c = $('#losoChart'); if (!R.loso) return; const W = widthOf(c);
+  const order = ['none', '02', '04', '09', '05', '10', '11', '13'];
+  const rows = order.map(k => R.loso.find(r => r.left_out === k));
+  const rowH = 40, labW = W < 520 ? W * 0.36 : 170, H = rows.length * rowH + 30;
+  const s = svgIn(c, W, H, 'Leave one video out');
+  $('#losoLegS').textContent = losoKey === 'gap' ? 'static video left out' : 'static cameras';
+  $('#losoLegM').textContent = losoKey === 'gap' ? 'moving video left out' : 'moving cameras';
+  if (losoKey === 'gap') {
+    const lo = -10, hi = 20, x = v => labW + (v - lo) / (hi - lo) * (W - labW - 50);
+    const g = el('g', { class: 'grid' }, s);
+    [-10, -5, 0, 5, 10, 15, 20].forEach(t => { el('line', { x1: x(t), x2: x(t), y1: 4, y2: H - 22 }, g); txt(s, x(t), H - 6, t, { 'text-anchor': 'middle' }); });
+    el('line', { x1: x(0), x2: x(0), y1: 4, y2: H - 22, stroke: css('--ink'), 'stroke-width': 1.5 }, s);
+    rows.forEach((r, i) => {
+      const y = 6 + i * rowH, col = r.left_out === 'none' ? css('--muted') : css('--' + r.group);
+      const lab = r.left_out === 'none' ? 'none (all 7)' : `− ${r.left_out} (${r.group})`;
+      txt(s, labW - 10, y + rowH / 2 + 4, lab, { 'text-anchor': 'end', class: 'lab', 'font-weight': r.gap < 0 ? 700 : 400 });
+      const x0 = x(Math.min(0, r.gap)), len = Math.abs(x(r.gap) - x(0));
+      el('rect', { x: x0, y: y + 9, width: len, height: rowH - 18, rx: 3, fill: col, stroke: r.gap < 0 ? css('--ink') : 'none', 'stroke-width': 2 }, s);
+      txt(s, r.gap < 0 ? x0 - 6 : x(r.gap) + 6, y + rowH / 2 + 4, fmt(r.gap), { class: 'val', 'text-anchor': r.gap < 0 ? 'end' : 'start' });
+      const hit = el('rect', { x: 0, y, width: W, height: rowH, fill: 'transparent' }, s);
+      hover(hit, () => `<b>${lab}</b><br><span class="k">HOTA static / moving</span> ${fmt(r.HOTA_static)} / ${fmt(r.HOTA_moving)}<br><span class="k">gap pooled</span> ${fmt(r.gap)} · <span class="k">per video</span> ${fmt(r.gap_seqmean)}`);
+    });
+    const n04 = R.loso.find(r => r.left_out === '04'), n0 = R.loso.find(r => r.left_out === 'none');
+    const gt = k => R.sequences.find(q => q.seq === 'MOT17-' + k).gt;
+    const share04 = Math.round(100 * gt('04') / (gt('02') + gt('04') + gt('09')));
+    $('#losoNote').textContent = `Without MOT17-04 (${share04}% of the static boxes, the easiest video) the pooled gap reverses to ${fmt(n04.gap)}. Averaged per video, the gap is ${fmt(n0.gap_seqmean)} HOTA. The HOTA gap is therefore not robust with seven videos.`;
+  } else {
+    const hi = 8, x = v => labW + v / hi * (W - labW - 50), bh = (rowH - 14) / 2;
+    const g = el('g', { class: 'grid' }, s);
+    [0, 2, 4, 6, 8].forEach(t => { el('line', { x1: x(t), x2: x(t), y1: 4, y2: H - 22 }, g); txt(s, x(t), H - 6, t + '%', { 'text-anchor': 'middle' }); });
+    rows.forEach((r, i) => {
+      const y = 6 + i * rowH; const lab = r.left_out === 'none' ? 'none (all 7)' : `− ${r.left_out} (${r.group})`;
+      txt(s, labW - 10, y + rowH / 2 + 4, lab, { 'text-anchor': 'end', class: 'lab' });
+      hbar(s, x(0), y + 6, x(r.refound_static) - x(0), bh, css('--static'));
+      hbar(s, x(0), y + 8 + bh, x(r.refound_moving) - x(0), bh, css('--moving'));
+      txt(s, x(r.refound_static) + 6, y + 6 + bh - 2, fmt(r.refound_static), { class: 'val', 'font-size': 11 });
+      txt(s, x(r.refound_moving) + 6, y + 8 + 2 * bh - 2, fmt(r.refound_moving), { class: 'val', 'font-size': 11 });
+      const hit = el('rect', { x: 0, y, width: W, height: rowH, fill: 'transparent' }, s);
+      hover(hit, () => `<b>${lab}</b><div class="row">${dot(css('--static'))}static ${fmt(r.refound_static)}%</div><div class="row">${dot(css('--moving'))}moving ${fmt(r.refound_moving)}%</div>`);
+    });
+    $('#losoNote').textContent = `Static cameras re-find more lost tracks with any one video left out, and in ${R.loso_pairs.refound_static_ahead} of ${R.loso_pairs.n} checks that leave out one static and one moving video.`;
+  }
+}
+
+/* ---------- E3 lost tracks per video ---------- */
+let lpsKey = 'best_iou';
+seg($('#lpsMetric'), [['best_iou', 'Best IoU after 9–16 frames'], ['refound', 'Re-found (%)']], lpsKey, k => { lpsKey = k; renderLps(); });
+function renderLps() {
+  const c = $('#lpsChart'); if (!R.lost_per_seq) return; const W = widthOf(c), H = 260, top = 24, bottom = 48, left = 44;
+  const s = svgIn(c, W, H, 'Lost-track recovery per video');
+  const seqs = R.lost_per_seq.slice().sort((a, b) => (a.group !== 'static') - (b.group !== 'static') || a.seq.localeCompare(b.seq));
+  const hi = lpsKey === 'best_iou' ? 0.4 : 10;
+  const y = v => H - bottom - v / hi * (H - top - bottom);
+  const g = el('g', { class: 'grid' }, s);
+  for (let i = 0; i <= 4; i++) { const t = hi * i / 4; el('line', { x1: left, x2: W, y1: y(t), y2: y(t) }, g); txt(s, left - 6, y(t) + 4, lpsKey === 'best_iou' ? t.toFixed(1) : t + '%', { 'text-anchor': 'end' }); }
+  const gw = (W - left) / seqs.length, bw = Math.min(54, gw * .6);
+  seqs.forEach((q, i) => {
+    const cx = left + gw * i + gw / 2, v = q[lpsKey];
+    vbar(s, cx - bw / 2, y(0), bw, y(0) - y(v), css('--' + q.group));
+    txt(s, cx, y(v) - 6, lpsKey === 'best_iou' ? v.toFixed(2) : fmt(v), { 'text-anchor': 'middle', class: 'val' });
+    txt(s, cx, H - bottom + 18, q.seq, { 'text-anchor': 'middle', class: 'lab' });
+    txt(s, cx, H - bottom + 34, q.group, { 'text-anchor': 'middle', 'font-size': 11 });
+    const hit = el('rect', { x: cx - gw / 2, y: top, width: gw, height: H - top - bottom + 40, fill: 'transparent' }, s);
+    hover(hit, () => `<div class="row">${dot(css('--' + q.group))}<b>MOT17-${q.seq}</b> · ${q.group}</div><span class="k">best IoU</span> ${q.best_iou.toFixed(2)}<br><span class="k">re-found</span> ${fmt(q.refound)}%<br><span class="k">lost predictions</span> ${q.n}`);
+  });
+  const sep = left + gw * 3;
+  el('line', { x1: sep, x2: sep, y1: top, y2: H - bottom + 36, stroke: css('--line'), 'stroke-dasharray': '4 4' }, s);
+  const st = R.lost_per_seq.filter(q => q.group === 'static'), mv = R.lost_per_seq.filter(q => q.group === 'moving');
+  const mm = (a, k) => [Math.min(...a.map(q => q[k])), Math.max(...a.map(q => q[k]))];
+  const [a1, a2] = mm(st, 'best_iou'), [b1, b2] = mm(mv, 'best_iou');
+  $('#lpsNote').textContent = lpsKey === 'best_iou'
+    ? `Every static video (${a1.toFixed(2)}–${a2.toFixed(2)}) is above every moving video (${b1.toFixed(2)}–${b2.toFixed(2)}): after a gap, the prediction on a moving camera has drifted off the person.`
+    : 'Re-found rates are noisier per video (MOT17-09 and MOT17-05 overlap), but pooled and with any video left out, static cameras stay ahead.';
+}
+
 function renderAll() {
-  renderPipe(); renderExpl(); renderE1(); renderE2Groups(); renderE2Share(); renderSeq(); renderGap(); renderTimeline(); renderLost(); renderE4();
+  renderPipe(); renderExpl(); renderE1(); renderE2Groups(); renderE2Share(); renderSeq(); renderGap(); renderLoso(); renderLps(); renderTimeline(); renderLost(); renderE4();
 }
 renderSeqTable(); renderAll(); hero();
 let rt; addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(renderAll, 150); });
